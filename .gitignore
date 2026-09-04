@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Node / build
+node_modules/
+dist/
+tmp/
+out-tsc/
+coverage/
+
+# Nx
+.nx/cache
+.nx/workspace-data
+
+# Editors
+.idea/
+*.log
