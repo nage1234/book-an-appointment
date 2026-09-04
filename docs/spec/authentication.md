@@ -6,7 +6,7 @@ Customers and admins log in with email + password. Customers can self‑register
 and recover a forgotten password. Mockups will be provided; this spec is the
 behaviour behind them.
 
-## Screens (web — `libs/web/feature-auth`)
+## Screens (web — `libs/web/auth`, `@baa/web-auth`)
 
 | Route | Screen | Who |
 | --- | --- | --- |
@@ -15,7 +15,30 @@ behaviour behind them.
 | `/forgot-password` | Email field → "we sent you a link" confirmation | everyone |
 | `/reset-password?token=…` | New password + confirm | via emailed link |
 
-All forms: `react-hook-form` + `zod`. MUI `TextField`, `Button`, `Alert` for errors.
+All forms: MUI `TextField`, `Button`, `Alert` for errors — controlled inputs with
+`useState` and a small validate function. No form library.
+
+### Login layout (from `docs/mockups/authentication.png`)
+
+Centred card (`width: 100%`, `maxWidth: 400px`), vertically stacked:
+
+1. Clinic **logo** (centred).
+2. Label **"Enter your email address"** → bordered text input (full width).
+3. Label **"Enter your password"** → bordered text input (full width).
+4. **"Forgot password?"** link directly under the password input, left‑aligned,
+   `#54A0D6`, size 16 (→ `/forgot-password`).
+5. **"Sign in"** button — primary (`#54A0D6`, no border, bold 16), centred.
+6. Footer line: **"Not registered yet? Sign up"** — "Sign up" is a `#54A0D6` link
+   (→ `/register`).
+
+`register` / `forgot-password` / `reset-password` reuse the same card shell,
+logo, label style, and button.
+
+### Responsive
+
+All auth screens follow the responsive rules in the `ui-components` skill: the
+card is fluid up to 400px and centred with page padding on phones; inputs and the
+Sign in button are full‑width on `xs`. Must render cleanly at 360px wide.
 
 ## Rules
 
@@ -23,19 +46,24 @@ All forms: `react-hook-form` + `zod`. MUI `TextField`, `Button`, `Alert` for err
 - Password: min 8 chars (keep it simple — length only).
 - Passwords hashed with bcrypt (cost 10). Never returned by any endpoint.
 - On success the API returns `{ token, user: { id, name, email_id, type } }`.
-  Web stores `token` + `user` in the `auth` redux slice **and** `localStorage`
-  (key `baa.auth`) so a refresh keeps you logged in.
-- RTK Query attaches `Authorization: Bearer <token>` to every request.
-- `401` from any API call → clear the slice → redirect to `/login`.
+  Web keeps `token` + `user` in `AuthContext` (`apps/web/src/app/AuthContext.tsx`
+  — plain React Context, no Redux) and mirrors it to `localStorage` (key
+  `baa.auth`) so a refresh keeps you logged in.
+- `apiFetch` (`apps/web/src/app/apiFetch.ts`) adds `Authorization: Bearer <token>`
+  to every request, reading it from `useAuth()`.
+- `401` from any API call → `apiFetch` calls `logout()` → redirect to `/login`.
 - Registration always creates `type = customer`. Admins are created manually
   (seed migration / direct DB), not through the app.
+- Registration also auto-creates one `patients` row for the new customer
+  (`name = customer.name`, `relation = 'self'`) — see schema.md and the
+  dashboard spec's patient selector.
 
 ## Redirects after login
 
 | user.type | lands on |
 | --- | --- |
 | `customer` | `/dashboard` |
-| `admin` | `/admin` (placeholder page for now — see schema.md open decision #6) |
+| `admin` | `/admin` — placeholder page for now, just shows "Welcome Admin" (schema.md decision #6) |
 
 A logged‑in user hitting `/login`, `/register`, etc. is bounced to their home route.
 A logged‑out user hitting a protected route is bounced to `/login`.
@@ -67,11 +95,14 @@ Errors: `400` validation, `401` bad credentials / bad token, `409` email already
 
 ## Backend pieces
 
+- Add `bcryptjs` + `jsonwebtoken` (M2). `zod` only if hand-validation gets ugly.
 - `libs/api/auth`: `hashPassword`, `verifyPassword`, `signToken`, `verifyToken`,
   `requireAuth` (sets `req.user`), `requireAdmin`.
-- `libs/api/data-access`: `customersRepo` (`findByEmail`, `create`, `updatePassword`),
-  `passwordResetRepo`.
-- `apps/api/src/routes/auth.ts`: validate with zod → call services → respond.
+- `libs/api/data-access`: customer queries (`findByEmail`, `create`,
+  `updatePassword`) + reset-token queries.
+- `apps/api/src/routes/auth.ts`: validate input → call the above → respond.
+- Forgot-password email: dev just logs the reset link to the console. Wire a real
+  mailer (`nodemailer` or similar) only when it's needed.
 
 ## Done when
 

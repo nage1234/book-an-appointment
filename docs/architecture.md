@@ -1,104 +1,96 @@
 # Architecture
 
+Guiding rule: **install a package only when a feature actually needs it.** The
+boilerplate ships with the smallest set that builds and runs. Everything else is
+added at the milestone that needs it.
+
 ## Tech stack
 
 | Layer | Choice |
 | --- | --- |
-| Monorepo | **Nx** (single repo for web + api + shared libs) |
-| Frontend | **React** + **React Router** |
-| State | **Redux Toolkit** + **RTK Query** (RTK Query handles all server data; a small `auth` slice holds the session). Plain React state for local UI. |
-| UI kit | **Material UI** — `@mui/material @emotion/react @emotion/styled @mui/icons-material`. Styling via MUI's `sx` / `styled` (Emotion, CSS‑in‑JS). No separate CSS files. Design tokens (buttons, typography, colours, links) live in the shared theme — see the `ui-components` skill. |
-| Dates | **dayjs** (month length, weekday, Sunday detection) on both web and api |
-| Backend | **Node.js** + **Express** (TypeScript) |
-| DB | **Supabase Postgres**, connected directly from Node with the `pg` driver over the Direct Connection string. No Supabase client SDK. |
-| Migrations | **node-pg-migrate** (plain SQL/JS migrations run by Node against the same connection string) |
-| Auth | JWT (access token) + bcrypt password hashing |
+| Monorepo | **Nx 21** (integrated, npm). Import alias `@baa/<name>`. |
+| Frontend | **React 19** + **React Router** + **Vite**. State: plain `useState`/`useReducer` in components, plus one **`AuthContext`** (React Context, built into React) at the app root holding the logged-in session. Deliberately no Redux/RTK — the app's global state is just "who's logged in", which doesn't justify that boilerplate. Add a state library later only if something genuinely outgrows this. |
+| UI kit | **Material UI** — `@mui/material @emotion/react @emotion/styled`. Styling via `sx` / `styled`. Design tokens live in the shared theme (`@baa/ui`) — see the `ui-components` skill. |
+| Backend | **Node.js** + **Express** (TypeScript, built with esbuild). |
+| DB | **Supabase Postgres**, connected directly from Node with the `pg` driver over the Direct Connection string. No Supabase SDK. |
+| Auth | Planned: JWT + bcrypt (added in M2). |
+| Migrations | Planned: `node-pg-migrate` (added in M1). |
+| Lint / tests | **None yet** — add when the code is worth guarding. |
 
 ## Nx monorepo layout
+
+Legend: ✅ exists now · ▫ created later, per milestone, via the `nx-scaffold` skill.
 
 ```
 book-an-appointment/
 ├── apps/
-│   ├── web/                     # React app (Vite bundler)
-│   ├── web-e2e/
-│   ├── api/                     # Express app
+│   ├── web/                     # ✅ React 19 + Vite, port 4200
+│   │   ├── index.html
 │   │   └── src/
-│   │       ├── main.ts          # bootstrap, listen
-│   │       ├── app.ts           # express app, middleware, route mount
-│   │       └── routes/          # thin route files -> call lib services
-│   └── api-e2e/
+│   │       ├── main.tsx         # ✅ ThemeProvider + CssBaseline + BrowserRouter
+│   │       └── app/
+│   │           ├── app.tsx          # ✅ <Routes> — mount feature routes here
+│   │           ├── AuthContext.tsx  # ▫ session (token, user) + useAuth() — M2
+│   │           └── apiFetch.ts      # ▫ shared fetch wrapper (bearer header, 401 -> logout) — M2
+│   └── api/                     # ✅ Express, port 3000
+│       └── src/
+│           ├── main.ts          # ✅ cors + json + GET /api/health
+│           ├── db.ts            # ✅ pg Pool + pingDb()
+│           └── routes/          # ▫ thin route files -> call lib services
 ├── libs/
 │   ├── shared/
-│   │   └── types/               # DTOs & enums shared by web + api
-│   │                            #   Customer, Appointment, SlotKey,
-│   │                            #   SlotStatus, AppointmentStatus, DayAvailability
+│   │   └── types/               # ✅ @baa/types — SlotKey, SlotStatus, AppointmentStatus, AuthUser…
 │   ├── web/
-│   │   ├── ui/                  # MUI theme + shared presentational components
-│   │   ├── data-access/         # redux store, RTK Query `api`, auth slice, hooks
-│   │   ├── feature-auth/        # login, register, forgot-password, reset-password
-│   │   ├── feature-dashboard/   # year/month selectors + calendar table
-│   │   └── feature-booking/     # book dialog, cancel popover, status popover
+│   │   ├── ui/                  # ✅ @baa/ui — MUI theme
+│   │   ├── auth/                # ▫ login, register, forgot / reset password
+│   │   ├── dashboard/           # ▫ patient/year/month selectors, add-patient dialog, calendar table
+│   │   └── booking/             # ▫ book dialog, cancel popover, status popover
 │   └── api/
-│       ├── data-access/         # pg Pool + repositories (customers, appointments, holidays)
-│       ├── auth/                # hashing, jwt sign/verify, requireAuth / requireAdmin middleware
-│       ├── availability/        # builds the month availability grid
-│       └── appointments/        # book / cancel / list-mine services + rules
-├── db/
-│   └── migrations/              # node-pg-migrate files
+│       ├── data-access/         # ▫ pg queries (customers, patients, appointments)
+│       ├── auth/                # ▫ hashing, jwt, requireAuth / requireAdmin
+│       ├── availability/        # ▫ builds the month availability grid
+│       └── appointments/        # ▫ book / cancel / list-mine + rules
+├── db/migrations/               # ▫ node-pg-migrate (M1)
 ├── docs/
-└── .claude/skills/              # repeatable workflows (scaffold, endpoint, feature, migration)
+└── .claude/skills/
 ```
 
-**Rule of thumb:** apps are thin (wiring only); all logic lives in `libs`.
-Web features never talk to `fetch` directly — only through the RTK Query `api`
-in `libs/web/data-access`. API routes never run SQL directly — only through
-repositories in `libs/api/data-access`.
+**Rule of thumb:** apps stay thin (wiring only); logic lives in `libs`. API
+routes don't run SQL directly — they call `libs/api/data-access`.
 
-## Node.js libraries
+## Dependencies
 
-**Runtime**
-- `express` — HTTP server
-- `pg` — Postgres/Supabase driver (connection pool)
-- `jsonwebtoken` — issue/verify access tokens
-- `bcryptjs` — password hashing
-- `zod` — request body/query validation (schemas shared conceptually with `libs/shared/types`)
-- `dayjs` — date maths
-- `cors`, `helmet`, `compression` — standard middleware
-- `pino`, `pino-http` — logging
-- `dotenv` — load `DATABASE_URL`, `JWT_SECRET`, etc.
-- `http-errors` — typed HTTP errors
-- `nodemailer` — forgot‑password email (dev: log the link to console / Ethereal)
+### Installed now
 
-**Tooling / dev**
-- `node-pg-migrate` — migrations
-- `jest`, `ts-jest`, `supertest` — api tests
-- `@types/*` for the above
+**web:** `react`, `react-dom`, `react-router-dom`, `@mui/material`, `@emotion/react`, `@emotion/styled`
+**api:** `express`, `pg`, `dotenv`, `cors`
+**build (dev):** `nx` + `@nx/{react,vite,node,esbuild,js,web,workspace}`, `vite`, `@vitejs/plugin-react`, `esbuild`, `typescript`, `tslib`, `@types/*`
 
-## Frontend libraries
+### Add when the milestone needs it
 
-- `react`, `react-dom`, `react-router-dom`
-- `@reduxjs/toolkit`, `react-redux`
-- `@mui/material`, `@emotion/react`, `@emotion/styled`, `@mui/icons-material`
-- `dayjs`
-- `react-hook-form`, `zod`, `@hookform/resolvers` — auth forms
-- `@testing-library/react` + Vitest/Jest — component tests
+| Package | When | For |
+| --- | --- | --- |
+| `node-pg-migrate` | M1 | schema migrations |
+| `bcryptjs`, `jsonwebtoken` | M2 | password hashing, access tokens |
+| `zod` | M2 | request body validation (only where it pays off) |
+| `dayjs` | M3 | month length / weekday / Sunday detection (web + api) |
+| a state or data-fetching lib | only if plain React state + `fetch` genuinely stops scaling | — |
+| eslint / a test runner | when you want them | — |
 
 ## Environment variables
 
 | Var | Used by | Example |
 | --- | --- | --- |
-| `DATABASE_URL` | api, migrations | `postgresql://postgres:<pw>@db.adtzwdoturygbvjmlizv.supabase.co:5432/postgres` |
-| `JWT_SECRET` | api | random 32+ char string |
-| `JWT_EXPIRES_IN` | api | `12h` |
+| `DATABASE_URL` | api (+ migrations later) | `postgresql://postgres:<pw>@db.adtzwdoturygbvjmlizv.supabase.co:5432/postgres` |
+| `PORT` | api | `3000` |
 | `WEB_ORIGIN` | api (CORS) | `http://localhost:4200` |
-| `SMTP_*` | api (nodemailer) | optional in dev |
 | `VITE_API_URL` | web | `http://localhost:3000/api` |
+| `JWT_SECRET` | api | added in M2 |
 
-Never commit real credentials. `.env` is git‑ignored; a `.env.example` is committed.
+`.env` is git-ignored; `.env.example` is committed.
 
 ## API conventions
 
-- Base path `/api`.
-- JSON only. Auth via `Authorization: Bearer <token>`.
-- Success: `200/201` with the resource. Error: `{ error: { message, code? } }` with a 4xx/5xx status.
-- All dates in payloads are ISO `YYYY-MM-DD` strings; slots are identified by `SlotKey` (see schema.md).
+- Base path `/api`. JSON only. Auth (from M2) via `Authorization: Bearer <token>`.
+- Success: `200/201` with the resource. Error: a 4xx/5xx status with `{ error: { message } }`.
+- Dates in payloads are ISO `YYYY-MM-DD`; slots are `SlotKey` values (see schema.md).

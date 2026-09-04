@@ -39,6 +39,20 @@ colours/sizes that duplicate what's below.
 ### Everything else
 - Default text colour across all components is `#676363`.
 
+### Responsive design (required)
+- Every screen must be **fully responsive** and look correct on mobile — phones
+  (~360px wide) through tablet to desktop. Mobile is a first‑class target, not an
+  afterthought.
+- Design mobile‑first: base styles target small screens; use MUI breakpoints
+  (`theme.breakpoints` / `sx={{ ... , md: ... }}` / `useMediaQuery`) to adapt upward.
+- Layout: fluid widths, no fixed pixel widths that overflow a phone. Auth card is
+  `width: 100%; maxWidth: 400px` and centred. The dashboard grid scrolls
+  horizontally inside its own container — the page body never scrolls sideways.
+- Tap targets ≥ 44px; inputs and buttons go full‑width on `xs`.
+- `<meta name="viewport" content="width=device-width, initial-scale=1">` is set in
+  `apps/web/index.html`.
+- Verify at 360×640, 768×1024, and ≥1280 before calling a screen done.
+
 > This list will grow. When the user gives a new rule, add it here **and** to the
 > theme, then reference the token from components.
 

@@ -1,51 +1,46 @@
 ---
 name: add-api-endpoint
-description: Add a REST endpoint to the Express API following the repo's route -> service -> repository layering, zod validation, and error conventions. Use when adding or changing a backend endpoint.
+description: Add a REST endpoint to the Express API following the repo's route -> logic -> data-access layering and error conventions. Use when adding or changing a backend endpoint.
 ---
 
 # Add an API endpoint
 
-API conventions are in [docs/architecture.md](../../../docs/architecture.md#api-conventions).
-Base path `/api`. JSON only. Bearer auth. Errors: `{ error: { message, code? } }`.
+Conventions: [docs/architecture.md](../../../docs/architecture.md#api-conventions).
+Base path `/api`. JSON only. Bearer auth (from M2). Error shape: a 4xx/5xx status
+with `{ error: { message } }`.
 
-## Layers (never skip one)
+## Layers (keep them separate)
 
 ```
-apps/api/src/routes/<area>.ts      HTTP only: parse+validate (zod), call service, shape response
-libs/api/<area>/src/*.ts           business rules, no req/res, no SQL
-libs/api/data-access/src/*Repo.ts  SQL only, via the shared pg Pool
-libs/shared/types                  request/response DTOs + enums (imported by web too)
+apps/api/src/routes/<area>.ts       HTTP only: read + validate input, call logic, shape response
+libs/api/<area>/src/*.ts            business rules — no req/res, no SQL
+libs/api/data-access/src/*.ts       SQL only, via the shared pg Pool
+libs/shared/types (@baa/types)      response shapes + enums (imported by web too)
 ```
+
+For a tiny endpoint it's fine to keep the logic inline in the route — split into
+a lib once there's a real rule to test or reuse.
 
 ## Steps
 
-1. **DTOs** — add/extend types in `libs/shared/types` (`FooRequest`, `FooResponse`).
-2. **Repository** — in `libs/api/data-access`, add a function that runs the SQL
-   with parameterised queries (`pool.query('... $1', [x])`). Return plain rows
-   mapped to domain objects (snake_case → camelCase here, once).
-3. **Service** — in `libs/api/<area>`, implement the rule. Throw `http-errors`
-   (`createError(409, 'Slot taken', { code: 'SLOT_TAKEN' })`) for expected failures.
-   Catch Postgres unique‑violation (`err.code === '23505'`) and rethrow as `409`.
+1. **Types** — add response shapes / enums to `@baa/types` if the web side needs them.
+2. **Data access** — in `libs/api/data-access`, a function running **parameterised**
+   SQL (`pool.query('... where id = $1', [id])`). Map `snake_case` → `camelCase` once, here.
+3. **Logic** — apply the rule. For expected failures, return a tagged result or
+   throw an `Error` the route maps to a status. Catch Postgres unique-violation
+   (`err.code === '23505'`) → `409`.
 4. **Route** — in `apps/api/src/routes/<area>.ts`:
-   - `const body = FooSchema.parse(req.body)` (zod) — invalid → `400` via error middleware.
-   - Apply `requireAuth` / `requireAdmin` middleware as needed; owner checks go in the service.
-   - `res.status(201).json({ appointment: mapAppointment(result) })`.
-5. **Register** the router in `apps/api/src/app.ts` under `/api`.
-6. **Test** — `supertest` in `apps/api-e2e` or the lib's jest spec: happy path,
-   validation `400`, auth `401`, and the key `409`/`403` rule.
-7. **Web** — add the matching RTK Query endpoint (see `add-web-feature` skill) with
-   correct `providesTags` / `invalidatesTags`.
-
-## Error middleware (already in app.ts)
-
-Central handler: zod error → `400` with issues; `http-errors` → its status/message;
-anything else → `500` + logged via pino. Never `res.json` an error inline in a route.
+   - Validate input by hand (check presence/type/range). Add `zod` only once a
+     route has enough fields that hand-checking is worse — it's not installed yet.
+   - Apply `requireAuth` / `requireAdmin` middleware (M2); ownership checks in the logic.
+   - `res.status(201).json({ appointment })` / `res.status(409).json({ error: { message } })`.
+5. **Register** the router in `apps/api/src/main.ts` (`app.use('/api/<area>', router)`).
+6. **Check manually** — `curl` the happy path + the main failure (401 / 403 / 409).
 
 ## Checklist
 
 - [ ] Parameterised SQL only (no string interpolation)
-- [ ] zod schema for every body/query
-- [ ] Expected failures are `http-errors`, not generic 500s
-- [ ] Ownership/role checked
-- [ ] DTO in `shared/types`, used on both sides
-- [ ] Test covers the main rule
+- [ ] Input validated; bad input → `400`
+- [ ] Expected failures return a real status, not a 500
+- [ ] Ownership / role checked
+- [ ] Response shape in `@baa/types` if web consumes it

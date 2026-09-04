@@ -8,7 +8,7 @@ Appointment booking app for a psychiatric clinic. Patients ("customers") book
 | Doc | Purpose |
 | --- | --- |
 | [architecture.md](architecture.md) | Tech stack, Nx monorepo layout, folder structure, library list |
-| [schema.md](schema.md) | Proposed database schema + open decisions for review |
+| [schema.md](schema.md) | Database schema + the reasoning behind every design decision |
 | [plan.md](plan.md) | Build order / milestones |
 | [spec/authentication.md](spec/authentication.md) | Login, register, forgot/reset password |
 | [spec/dashboard.md](spec/dashboard.md) | Year/month controls + calendar availability table |
