@@ -84,7 +84,10 @@ npm ci
 cp .env.example .env          # fill in the Supabase DATABASE_URL
 
 npm run dev                   # web on :4200, api on :3000
-# or individually: npm run web   /   npm run api
+# or individually: 
+npm run web                   # run the web UI application
+
+npm run api                   # run the backend node application
 
 npm run build                 # build web + api
 ```
@@ -92,8 +95,10 @@ npm run build                 # build web + api
 Check API + DB wiring: `curl localhost:3000/api/health` → `{"status":"ok","db":true}`
 once `.env` has a valid `DATABASE_URL` (before that: `{"status":"degraded","db":false}`).
 
-> If your shell uses the `proto` toolchain and `npx nx` misbehaves, run with a
-> clean PATH: `export PATH="$HOME/.proto/tools/node/26.7.0/bin:/usr/bin:/bin:/usr/sbin:/sbin"`.
+> Node is pinned in `.prototools` (`node = "26.7.0"`). If you use the `proto`
+> toolchain, `proto use` in the repo installs it. If `npx nx` still hits a
+> `proto::commands::run::fallback_loop`, run once with a clean PATH:
+> `export PATH="$HOME/.proto/tools/node/26.7.0/bin:/usr/bin:/bin:/usr/sbin:/sbin"`.
 
 ### Layout
 
