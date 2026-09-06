@@ -7,6 +7,11 @@ interface AuthResult {
   user: { id: number; name: string; email_id: string; type: string };
 }
 
+// The client sends the password base64-encoded (obfuscation, not encryption).
+// Invalid base64 just decodes to garbage, which then fails the hash check.
+const decodePassword = (encoded: string): string =>
+  Buffer.from(encoded, 'base64').toString('utf8');
+
 export const registerUser = async (userData: {
   name: string;
   email: string;
@@ -14,14 +19,31 @@ export const registerUser = async (userData: {
   type: string;
 }): Promise<AuthResult> => {
   const email = userData.email.trim().toLowerCase();
-  const passwordHash = await hashPassword(userData.password);
 
-  const user = await registerCustomer({
-    name: userData.name,
-    email,
-    passwordHash,
-    type: userData.type,
-  });
+  // App-level guard (the customers.email_id UNIQUE index should also exist - see
+  // schema.md - but the current DB may be missing it). Small race window is
+  // acceptable here; the 23505 catch below is the backstop once the index exists.
+  if (await findCustomerByEmail(email)) {
+    throw new Error('That email is already registered');
+  }
+
+  const passwordHash = await hashPassword(decodePassword(userData.password));
+
+  let user;
+  try {
+    user = await registerCustomer({
+      name: userData.name,
+      email,
+      passwordHash,
+      type: userData.type,
+    });
+  } catch (err) {
+    // 23505 = unique_violation on customers.email_id
+    if ((err as { code?: string }).code === '23505') {
+      throw new Error('That email is already registered');
+    }
+    throw err;
+  }
 
   return {
     token: signToken({ sub: user.id, email: user.email_id, type: user.type }),
@@ -37,7 +59,8 @@ export const loginUser = async (loginData: {
   const customer = await findCustomerByEmail(email);
 
   // Same message either way - don't reveal whether the email is registered.
-  if (!customer || !(await verifyPassword(loginData.password, customer.password))) {
+  const password = decodePassword(loginData.password);
+  if (!customer || !(await verifyPassword(password, customer.password))) {
     throw new Error('Invalid email or password');
   }
 

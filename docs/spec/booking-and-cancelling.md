@@ -58,12 +58,15 @@ patient's 🟦 blue cell.
 **Server rules (`cancelAppointment`):**
 - Load the appointment (joined to `patients`); `404` if not found.
 - `403` if `patients.customer_id !== req.user.id` (i.e. the appointment isn't for
-  one of this customer's patients).
+  one of this customer's patients). This holds regardless of `created_by` — a
+  customer can cancel an appointment an admin booked for their patient.
 - `409` unless `status === 'booked'` **and** the slot's start time is more than
   1 hour away (schema.md decision #3).
 - Set `status = 'cancelled'`, `updated_at = now()`. The slot is immediately free
   (the partial unique index ignores cancelled rows), and this patient can book a
   new appointment right away.
+- A **customer** self-cancel sends no email. **Admin**-initiated cancellations do
+  — see [admin-dashboard.md](admin-dashboard.md#cancellation-emails).
 
 ## C. "My appointments" (supporting)
 
@@ -110,4 +113,5 @@ Errors: `400` invalid slot/date/out-of-horizon · `401` no token · `403` not th
 ## Out of scope
 
 Rescheduling (cancel + rebook instead), recurring appointments, waitlist,
-notifications/reminders, admin cancelling on a customer's behalf.
+notifications/reminders. (Admin booking/cancelling on a customer's behalf is in
+[admin-dashboard.md](admin-dashboard.md).)

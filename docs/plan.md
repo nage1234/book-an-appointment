@@ -28,9 +28,9 @@ Principle: no package or abstraction until a milestone actually needs it.
 
 - Add `node-pg-migrate`; `db/migrations` wired to `DATABASE_URL`.
 - Migration 1: enums (`appointment_status` = `booked`/`cancelled` only — no
-  `in_progress`), `customers`, `patients`, `appointments` (`patient_id` FK +
-  partial unique index), `password_reset_tokens`. No `holidays` table — Sunday
-  is the only holiday for now (schema.md decision #4). → **`db-migration`** skill.
+  `in_progress`; `created_by` = `customer`/`admin`), `customers`, `patients`,
+  `appointments` (`patient_id` FK, `created_by` default `customer`, partial
+  unique index), `holidays`, `password_reset_tokens`. → **`db-migration`** skill.
 - Seed: one admin user.
 - **Check:** `npm run migrate up` applies cleanly against Supabase.
 
@@ -89,6 +89,29 @@ Principle: no package or abstraction until a milestone actually needs it.
 - Add a test runner + a few tests (grid colour logic, booking rules, the
   concurrency 409) and eslint if wanted.
 
+## M6 — Admin dashboard ([spec](spec/admin-dashboard.md))
+
+All the spec's open decisions are resolved.
+
+- Add `nodemailer`; add `appointments.created_by` (`customer`/`admin`) column.
+- `requireAdmin` middleware; `/api/admin/*` router.
+- **Holidays** — CRUD (`holidays` table); availability computation greys holiday
+  dates. Adding a holiday cancels every `booked` appointment on that date and
+  emails each customer the fixed cancellation message (dev: console transport).
+- **Manual booking** — customer search, patient lookup, `POST /api/admin/appointments`
+  with `created_by='admin'`, bypassing the per-patient limit / horizon / 1h window
+  (slot-taken / Sunday / holiday still block). Admin cancel emails the customer.
+- **Metrics** — `GET /api/admin/metrics?period=…`: total appointments for the
+  calendar period + an appointments-per-customer table. Plain `COUNT`/`GROUP BY`,
+  stat cards + table, no charting library.
+- **Dormant customers** — `GET /api/admin/customers/dormant`: `type='customer'`
+  accounts with no non-cancelled appointments across their patients.
+- `/admin` screen with the four sections; behind an admin route guard.
+- **Check:** admin adds a holiday → customer dashboard greys it, its bookings are
+  cancelled, those customers get the email; admin books for a chosen patient
+  (overriding limits) → shows for that patient and the customer can still cancel
+  it; metric numbers + per-customer table render; dormant list is correct.
+
 ## Cross-cutting
 
 - `@baa/types` is the single source of truth for `SlotKey`, the slot→time map,
@@ -97,5 +120,5 @@ Principle: no package or abstraction until a milestone actually needs it.
 
 ## Decisions
 
-All schema.md decisions are resolved (see its **Decisions** section) — nothing
-blocking M1 or M4 anymore. Ready to build in order.
+All decisions are resolved — schema.md **Decisions** for M1–M5, and the admin
+spec's **Decisions** for M6. Ready to build in order.

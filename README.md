@@ -12,7 +12,7 @@ milestone plan before any feature code — see [Documentation](#documentation).
 - A customer can register (email, password, name) and is logged straight in.
 - A customer can log in / log out; a session survives a page refresh.
 - A customer can request a password-reset link and set a new password.
-- An admin logs in through the same screen and lands on a separate `/admin` page.
+- An admin logs in through the same screen and lands on the `/admin` dashboard.
 - Registering a customer auto-creates a "Self" patient, so booking works immediately.
 
 **Patients** — one account, multiple people
@@ -26,8 +26,8 @@ milestone plan before any feature code — see [Documentation](#documentation).
   horizontally-scrollable calendar: one column per day, 6 fixed one-hour slots
   (10–1, 2–5) per day as rows.
 - Each slot is colour-coded: **green** = available, **blue** = booked for the
-  selected patient, **red** = booked for someone else, **grey** = Sunday or a
-  past slot.
+  selected patient, **red** = booked for someone else, **grey** = Sunday, an
+  admin-set holiday, or a past slot.
 - A small indicator on the selected patient's own bookings opens a popover with
   the appointment's status.
 
@@ -40,6 +40,15 @@ milestone plan before any feature code — see [Documentation](#documentation).
   status popover.
 - A completed appointment (its slot's end time has passed) is shown as
   `Completed` automatically — no admin step, no background job.
+
+**Admin dashboard** (`/admin`)
+- Set and remove **holidays** — a holiday greys the date out for every customer,
+  cancels any bookings on it, and emails those customers.
+- **Book manually** for any customer's patient (phone bookings), overriding the
+  usual limits.
+- **Metrics** — total appointments per calendar month/year, and an
+  appointments-per-customer breakdown.
+- **Dormant customers** — accounts that registered but never booked.
 
 Full behavioural detail, including every edge case and error response, is
 written up per feature in [docs/spec/](docs/spec/).
@@ -69,11 +78,12 @@ Spec-complete, boilerplate built, features not yet implemented. See
 [docs/plan.md](docs/plan.md) for the exact milestone breakdown:
 
 - ✅ **M0** — Nx workspace, React/Express boilerplate, MUI theme, DB connectivity
-- ⏭ **M1** — database migrations (customers, patients, appointments, password resets)
-- ⏭ **M2** — authentication
-- ⏭ **M3** — availability dashboard
+- 🔨 **M1** — database migrations (customers, patients, appointments, holidays, password resets)
+- 🔨 **M2** — authentication *(login + register built; forgot/reset pending)*
+- 🔨 **M3** — availability dashboard *(static UI shell built; selects, grid, patient picker not yet wired to data)*
 - ⏭ **M4** — booking & cancelling
 - ⏭ **M5** — polish, lint, tests
+- ⏭ **M6** — admin dashboard (holidays, manual booking, metrics, dormant customers)
 
 ## Quick start
 

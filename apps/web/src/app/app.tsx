@@ -1,35 +1,15 @@
-import { Route, Routes } from 'react-router-dom';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-
-function Home() {
-  return (
-    <Box
-      sx={{
-        minHeight: '100dvh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 1,
-        p: 2,
-        textAlign: 'center',
-      }}
-    >
-      <Typography variant="h5">Book an Appointment</Typography>
-      <Typography variant="body2">
-        Boilerplate ready. Add screens under <code>src/app/</code> and mount their
-        routes here.
-      </Typography>
-    </Box>
-  );
-}
+import { Navigate, Route, Routes } from 'react-router-dom';
+import Login from './pages/authentication/login';
+import Register from './pages/authentication/register';
+import DashboardCustomer from './pages/dashboard/dashboard';
 
 export function App() {
   return (
     <Routes>
-      {/* Add feature routes here, e.g. <Route path="/login" element={<Login />} /> */}
-      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/dashboard" element={<DashboardCustomer />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
 }

@@ -31,8 +31,19 @@ Centred card (`width: 100%`, `maxWidth: 400px`), vertically stacked:
 6. Footer line: **"Not registered yet? Sign up"** — "Sign up" is a `#54A0D6` link
    (→ `/register`).
 
-`register` / `forgot-password` / `reset-password` reuse the same card shell,
-logo, label style, and button.
+`register` / `forgot-password` / `reset-password` reuse the same bordered card
+shell, logo, label style, and buttons.
+
+### Register screen (`/register`)
+
+Reached from the "Sign up" link. Bordered card, titled "Customer Registration".
+All four fields mandatory: **Name**, **Email**, **Password**, **Re-type password**.
+Client checks: password ≥ 8 chars, and password === re-type. Two buttons:
+**Submit** (primary) and **Cancel** (secondary → `/login`).
+
+On success the user is sent **to `/login`** (with a "Account created. Please sign
+in." success message) — registration does **not** auto-log-in, even though the
+API returns a token. `useAuth().register()` deliberately ignores that token.
 
 ### Responsive
 
@@ -44,14 +55,19 @@ Sign in button are full‑width on `xs`. Must render cleanly at 360px wide.
 
 - Email is case‑insensitive; stored and compared lower‑cased.
 - Password: min 8 chars (keep it simple — length only).
-- Passwords hashed with bcrypt (cost 10). Never returned by any endpoint.
+- The client base64-encodes the password before sending it (`btoa` on web,
+  `Buffer.from(x,'base64')` decode on the API). This is obfuscation only — it
+  keeps the plain text out of the request body / logs; HTTPS is what protects it
+  in transit. Applies to both `/auth/login` and `/auth/register`.
+- Passwords hashed with bcrypt (cost 10) *after* decoding. Never returned by any endpoint.
 - On success the API returns `{ token, user: { id, name, email_id, type } }`.
-  Web keeps `token` + `user` in `AuthContext` (`apps/web/src/app/AuthContext.tsx`
-  — plain React Context, no Redux) and mirrors it to `localStorage` (key
-  `baa.auth`) so a refresh keeps you logged in.
-- `apiFetch` (`apps/web/src/app/apiFetch.ts`) adds `Authorization: Bearer <token>`
-  to every request, reading it from `useAuth()`.
-- `401` from any API call → `apiFetch` calls `logout()` → redirect to `/login`.
+  Web keeps `token` + `user` in `AuthContext` — plain React Context, no Redux
+  (`apps/web/src/app/pages/authentication/useAuth.tsx`, exporting `AuthProvider`
+  + `useAuth()`) — and mirrors it to `localStorage` (key `baa.auth`) so a
+  refresh keeps you logged in.
+- A shared `fetch` wrapper will add `Authorization: Bearer <token>` to
+  authenticated requests, reading it from `useAuth()`, and call `logout()` +
+  redirect to `/login` on `401` (added when the first protected screen lands).
 - Registration always creates `type = customer`. Admins are created manually
   (seed migration / direct DB), not through the app.
 - Registration also auto-creates one `patients` row for the new customer
@@ -95,18 +111,26 @@ Errors: `400` validation, `401` bad credentials / bad token, `409` email already
 
 ## Backend pieces
 
-- Add `bcryptjs` + `jsonwebtoken` (M2). `zod` only if hand-validation gets ugly.
-- `libs/api/auth`: `hashPassword`, `verifyPassword`, `signToken`, `verifyToken`,
-  `requireAuth` (sets `req.user`), `requireAdmin`.
-- `libs/api/data-access`: customer queries (`findByEmail`, `create`,
-  `updatePassword`) + reset-token queries.
-- `apps/api/src/routes/auth.ts`: validate input → call the above → respond.
-- Forgot-password email: dev just logs the reset link to the console. Wire a real
-  mailer (`nodemailer` or similar) only when it's needed.
+Built flat under `apps/api/src/app/` (not the `libs/api/*` split the older docs
+describe):
+
+- `utils/password.ts` — `hashPassword` / `verifyPassword` (bcrypt).
+- `utils/jwt.ts` — `signToken` / `verifyToken`, `AuthTokenPayload` (`sub` = customer id).
+  Stateless: no session/token table. `requireAuth` / `requireAdmin` middleware
+  land here when the first protected route does.
+- `repositories/auth.ts` — `registerCustomer`, `findCustomerByEmail` (parameterised SQL).
+- `services/auth.ts` — `registerUser` (dedup check → hash → insert → token),
+  `loginUser` (find → verify → token). Both `decodePassword()` the base64 first.
+- `controllers/auth.ts` + `routes/auth.ts` — validate body, call the service,
+  shape the response. Router mounted once at `/api/auth` in `main.ts`.
+- `zod` only if hand-validation gets ugly. Forgot-password mailer: log the link
+  to the console in dev; wire a real mailer only when needed.
 
 ## Done when
 
-- New customer can register, is logged straight in, lands on `/dashboard`.
+- New customer can register (Name / Email / Password / Re-type password), then
+  lands on `/login` with a success message and signs in.
+- Registering an already-used email shows "That email is already registered" (`409`).
 - Existing customer/admin can log in and is routed by type.
 - Wrong password shows an inline error, no crash.
 - Forgot → reset with the emailed link works; expired/used token is rejected.

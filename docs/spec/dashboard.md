@@ -87,11 +87,12 @@ Client just paints.
 | 🟥 red | Slot booked for **another patient** (anyone's — including the same customer's other patients) | No |
 | 🟦 blue | Slot booked for **the selected patient** — status `Booked` or `Completed` | Click the corner indicator → status / cancel popover (Spec 3) |
 | 🟩 green | **Available** to book for the selected patient | Click → booking confirm dialog (Spec 3) |
-| ⬜ grey | **Unavailable** — Sunday, or a past slot not booked for the selected patient | No |
+| ⬜ grey | **Unavailable** — Sunday, an admin-set holiday, or a past slot not booked for the selected patient | No |
 
-A day is greyed (all 6 cells grey, nothing clickable) when it's a **Sunday** — no
-exception (no other holidays for now — schema.md decision #4). A **past,
-non-Sunday** day is grey **except** for slots booked for the selected patient:
+A day is greyed (all 6 cells grey, nothing clickable) when it's a **Sunday** or
+an **admin-set holiday** (see [admin-dashboard.md](admin-dashboard.md)) — no
+exception. A **past** day that is neither Sunday nor holiday is grey **except**
+for slots booked for the selected patient:
 those still show blue with a **derived** status of `Completed` (never stored —
 see schema.md), so a patient's own history remains visible.
 
@@ -130,7 +131,7 @@ Response:
       "date": "2026-09-01",
       "weekday": "Mon",          // dayjs short name
       "greyed": false,
-      "greyedReason": null,       // "sunday" | "past" | null
+      "greyedReason": null,       // "sunday" | "holiday" | "past" | null
       "slots": [
         {
           "slot": "S10_11",
@@ -149,14 +150,15 @@ Response:
 
 1. `daysInMonth`, weekday per day — dayjs. Reject the request (`400`) if
    `year`/`month` fall outside the 3-month booking horizon (schema.md decision #5).
-2. Load `appointments` in range where `status = 'booked'`, joined to `patients`
+2. Load `holidays` in range → set of dates.
+3. Load `appointments` in range where `status = 'booked'`, joined to `patients`
    for ownership, grouped by `(date, slot)`.
-3. For each day × slot:
+4. For each day × slot:
    - appointment's `patient_id === patientId` (the query param) → `blue`, with
      `appointment.status` = `'completed'` if the slot's end time has passed,
      else `'booked'` — **checked first**, so the selected patient's past
      bookings stay visible.
-   - else day is Sunday or before today → `grey`
+   - else day is Sunday, a holiday, or before today → `grey`
    - else appointment exists for any other patient → `red`
    - else → `green`
 
@@ -179,7 +181,7 @@ Response:
 - Selecting a different patient repaints the grid for that patient.
 - Selecting a year+month renders the correct number of day columns with correct weekdays.
 - Year/Month options never go past the 3-month booking horizon.
-- Sundays render as fully grey, non‑clickable columns.
+- Sundays and admin-set holidays render as fully grey, non‑clickable columns.
 - Past dates in the current month are grey, except any slot booked for the
   selected patient, which stays blue with status `Completed`.
 - A slot booked for another patient is red; the selected patient's own booking is

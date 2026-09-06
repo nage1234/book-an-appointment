@@ -44,12 +44,14 @@ book-an-appointment/
 │   │   ├── ui/                  # ✅ @baa/ui — MUI theme
 │   │   ├── auth/                # ▫ login, register, forgot / reset password
 │   │   ├── dashboard/           # ▫ patient/year/month selectors, add-patient dialog, calendar table
-│   │   └── booking/             # ▫ book dialog, cancel popover, status popover
+│   │   ├── booking/             # ▫ book dialog, cancel popover, status popover
+│   │   └── admin/               # ▫ M6 — holidays, manual booking, metrics, dormant customers
 │   └── api/
-│       ├── data-access/         # ▫ pg queries (customers, patients, appointments)
+│       ├── data-access/         # ▫ pg queries (customers, patients, appointments, holidays)
 │       ├── auth/                # ▫ hashing, jwt, requireAuth / requireAdmin
 │       ├── availability/        # ▫ builds the month availability grid
-│       └── appointments/        # ▫ book / cancel / list-mine + rules
+│       ├── appointments/        # ▫ book / cancel / list-mine + rules
+│       └── admin/               # ▫ M6 — holiday CRUD, manual booking, metrics, reports
 ├── db/migrations/               # ▫ node-pg-migrate (M1)
 ├── docs/
 └── .claude/skills/
@@ -74,6 +76,8 @@ routes don't run SQL directly — they call `libs/api/data-access`.
 | `bcryptjs`, `jsonwebtoken` | M2 | password hashing, access tokens |
 | `zod` | M2 | request body validation (only where it pays off) |
 | `dayjs` | M3 | month length / weekday / Sunday detection (web + api) |
+| `nodemailer` | M6 | admin-cancellation emails (dev: console transport) |
+| `@mui/x-charts` | only if the admin metrics ever need graphs (not planned) | — |
 | a state or data-fetching lib | only if plain React state + `fetch` genuinely stops scaling | — |
 | eslint / a test runner | when you want them | — |
 
@@ -86,6 +90,7 @@ routes don't run SQL directly — they call `libs/api/data-access`.
 | `WEB_ORIGIN` | api (CORS) | `http://localhost:4200` |
 | `VITE_API_URL` | web | `http://localhost:3000/api` |
 | `JWT_SECRET` | api | added in M2 |
+| `SMTP_*` | api | added in M6 for cancellation emails; unset in dev → log to console |
 
 `.env` is git-ignored; `.env.example` is committed.
 

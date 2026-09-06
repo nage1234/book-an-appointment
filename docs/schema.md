@@ -31,10 +31,12 @@ that's the 3-value type the web app sees; the DB enum stays 2-value.
 
 **`gender`**: `male` | `female` | `other`
 
+**`created_by`** (on `appointments`): `customer` | `admin`
+
 **`SlotStatus`** (computed for the dashboard, not stored) — relative to the
 **selected patient**:
 `red` (booked for someone else — any other patient) · `blue` (booked for the
-selected patient) · `green` (available) · `grey` (unavailable — Sunday or past)
+selected patient) · `green` (available) · `grey` (unavailable — Sunday, holiday, or past)
 
 ## Tables
 
@@ -76,6 +78,7 @@ child, friend, …). Every appointment belongs to a patient, not directly to a c
 | `appointment_date` | `date` | not null |
 | `slot` | `slot_key` | not null |
 | `status` | `appointment_status` | not null, default `booked` — DB only ever holds `booked`/`cancelled` (see enum note above) |
+| `created_by` | `created_by` | not null, default `customer` — `admin` when booked via the admin dashboard |
 | `created_at` | `timestamptz` | default `now()` |
 | `updated_at` | `timestamptz` | default `now()` |
 
@@ -110,11 +113,31 @@ Rules, enforced as noted:
 | `expires_at` | `timestamptz` | e.g. now + 30 min |
 | `used_at` | `timestamptz` | null until consumed |
 
-## Holidays
+### `holidays` — admin-managed clinic closures
 
-No `holidays` table for now. A day is greyed only if it's a **Sunday** or in the
-past — that's it. Custom public holidays (an admin-managed list) are a later
-addition if actually needed; nothing in the current 3 specs depends on it.
+Added for the admin dashboard ([spec/admin-dashboard.md](spec/admin-dashboard.md)).
+A date here greys out entirely on the customer dashboard, exactly like a Sunday.
+Adding a holiday also cancels every `booked` appointment on that date and emails
+the affected customers.
+
+| column | type | notes |
+| --- | --- | --- |
+| `holiday_date` | `date` | **PK** |
+| `description` | `text` | e.g. "Independence Day" |
+| `created_at` | `timestamptz` | default `now()` |
+
+A day is greyed if it's a **Sunday**, appears in `holidays`, or is in the past
+(except the selected patient's own past bookings — see dashboard spec).
+
+## Admin-dashboard schema additions
+
+- **`appointments.created_by`** — `'customer' | 'admin'`, not null, default
+  `'customer'`. Set to `'admin'` when an admin books on a customer's behalf.
+  Used for metrics / validation. (admin spec, decision #3)
+- Cancellation by an admin (including holiday-triggered) emails the owning
+  customer — needs `nodemailer` (M6), not a schema change. (admin spec, decision #1)
+- **Decided against:** `customers.last_login_at` (not tracked) and a
+  `created_by_admin_id` FK (the `created_by` enum above is enough).
 
 ## Decisions
 
@@ -128,9 +151,13 @@ All previously-open questions, as answered:
 2. **`in_progress` / cron** — dropped. Only `booked`/`cancelled` are stored;
    `completed` is computed from the clock on read. No cron job.
 3. **Cancellation window** — up to 1 hour before the slot start; not cancellable after that.
-4. **Holidays** — Sunday only for now, no table, no admin screen (see above).
-5. **Booking horizon** — current month + the following two months (3 months total).
-6. **Admin role** — logs in and lands on `/admin`, which for now just shows
-   "Welcome Admin" (no admin dashboard functionality yet).
+4. **Holidays** — ~~Sunday only, no table~~ → **superseded**: `holidays` table
+   is back, admin-managed. Grey = Sunday **or** holiday **or** past. See
+   [spec/admin-dashboard.md](spec/admin-dashboard.md).
+5. **Booking horizon** — current month + the following two months (3 months
+   total). Admin manual booking may override this — admin spec open decision #2.
+6. **Admin role** — ~~just "Welcome Admin"~~ → **superseded**: full admin
+   dashboard (holidays, manual booking, metrics, dormant-customers report). See
+   [spec/admin-dashboard.md](spec/admin-dashboard.md).
 7. **`id` type** — `bigint` identity, as used throughout above.
 8. **Email uniqueness** — one email = one account, confirmed.

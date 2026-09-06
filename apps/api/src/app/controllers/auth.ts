@@ -6,10 +6,10 @@ export const register = async (
   res: Response
 ) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email_id, password } = req.body;
 
     // Basic validation
-    if (!name || !email || !password) {
+    if (!name || !email_id || !password) {
       return res.status(400).json({
         message: "Name, email and password are required",
       });
@@ -17,9 +17,9 @@ export const register = async (
 
     const { token, user } = await registerUser({
       name,
-      email,
+      email: email_id,
       password,
-      type: "customer",
+      type: "customer", // never taken from the client
     });
 
     return res.status(201).json({
@@ -34,9 +34,8 @@ export const register = async (
         ? error.message
         : "Something went wrong";
 
-    return res.status(400).json({
-      message,
-    });
+    const status = message.includes("already registered") ? 409 : 400;
+    return res.status(status).json({ message });
   }
 };
 
