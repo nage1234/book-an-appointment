@@ -16,7 +16,7 @@
     "baseUrl": ".",
     "paths": {
       "@baa/types": ["libs/shared/types/src/index.ts"],
-      "@baa/ui": ["libs/web/ui/src/index.ts"]
+      "@baa/ui": ["libs/web/ui/src/index.ts"],
     }
   },
   "exclude": ["node_modules", "tmp"]

@@ -10,6 +10,7 @@ Appointment booking app for a psychiatric clinic. Patients ("customers") book
 | [architecture.md](architecture.md) | Tech stack, Nx monorepo layout, folder structure, library list |
 | [schema.md](schema.md) | Database schema + the reasoning behind every design decision |
 | [plan.md](plan.md) | Build order / milestones |
+| [verification.md](verification.md) | Headless-browser checks (Playwright) — assertions + screenshots |
 | [spec/authentication.md](spec/authentication.md) | Login, register, forgot/reset password |
 | [spec/dashboard.md](spec/dashboard.md) | Year/month controls + calendar availability table |
 | [spec/booking-and-cancelling.md](spec/booking-and-cancelling.md) | Booking a slot, cancelling a slot |

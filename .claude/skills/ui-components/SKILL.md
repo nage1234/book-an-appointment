@@ -124,6 +124,9 @@ Wrap `apps/web` in `<ThemeProvider theme={theme}><CssBaseline/>…`.
 ## Checklist
 
 - [ ] Buttons come from `<Button>` with `color="secondary"` for Cancel‑style actions — no manual background colours
-- [ ] No hard‑coded hex in components; use theme tokens / palette
+- [ ] No hard‑coded hex in components; use theme tokens / lib constants
 - [ ] Links use `<Link>` (size 16, `#54A0D6`)
 - [ ] New agreed rule added here **and** to `theme.ts`
+- [ ] Every screen is fully responsive, tested at 360×640, 768×1024, and ≥1280
+- [ ] Always move the components to the @baa/ui lib if they are reusable and data-free.
+- [ ] implement the components with accessibility in mind, following WAI-ARIA guidelines and best practices for keyboard navigation and screen reader support.

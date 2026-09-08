@@ -1,4 +1,5 @@
 import { registerCustomer, findCustomerByEmail } from '@app/repositories/auth';
+import { createPatient } from '@app/repositories/patients';
 import { hashPassword, verifyPassword } from '@app/utils/password';
 import { signToken } from '@app/utils/jwt';
 
@@ -43,6 +44,19 @@ export const registerUser = async (userData: {
       throw new Error('That email is already registered');
     }
     throw err;
+  }
+
+  // Auto-create the "Self" patient so the dashboard's patient list is never empty.
+  try {
+    await createPatient({
+      customerId: user.id,
+      name: user.name,
+      age: null,
+      gender: null,
+      relation: 'Self',
+    });
+  } catch (err) {
+    console.error('Failed to auto-create self patient:', (err as Error).message);
   }
 
   return {
