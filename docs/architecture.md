@@ -17,69 +17,72 @@ added at the milestone that needs it.
 | Migrations | Planned: `node-pg-migrate` (added in M1). |
 | Lint / tests | **None yet** — add when the code is worth guarding. |
 
-## Nx monorepo layout
+## Layout (as built)
 
-Legend: ✅ exists now · ▫ created later, per milestone, via the `nx-scaffold` skill.
+The `libs/api/*` / `libs/web/feature-*` split the earlier drafts imagined was
+dropped — features live flat inside each app. Only genuinely shared code is a lib
+(`@baa/types`, `@baa/ui`). Legend: ✅ built · ▫ planned.
 
 ```
 book-an-appointment/
 ├── apps/
-│   ├── web/                     # ✅ React 19 + Vite, port 4200
+│   ├── web/  (React 19 + Vite + React Router, :4200)
 │   │   ├── index.html
 │   │   └── src/
-│   │       ├── main.tsx         # ✅ ThemeProvider + CssBaseline + BrowserRouter
+│   │       ├── main.tsx                     # ✅ ThemeProvider + CssBaseline + BrowserRouter + AuthProvider
 │   │       └── app/
-│   │           ├── app.tsx          # ✅ <Routes> — mount feature routes here
-│   │           ├── AuthContext.tsx  # ▫ session (token, user) + useAuth() — M2
-│   │           └── apiFetch.ts      # ▫ shared fetch wrapper (bearer header, 401 -> logout) — M2
-│   └── api/                     # ✅ Express, port 3000
+│   │           ├── app.tsx                  # ✅ <Routes> + <RequireAuth>
+│   │           └── pages/
+│   │               ├── authentication/      # ✅ login.tsx, register.tsx, types.ts,
+│   │               │                        #    useAuth.tsx (AuthContext), useApiFetch.ts
+│   │               └── dashboard/            # ✅ dashboard.tsx, AvailabilityGrid.tsx,
+│   │                                        #    AddPatientDialog.tsx, ConfirmDialog.tsx, helpers.ts
+│   └── api/  (Express + esbuild, :3000)
 │       └── src/
-│           ├── main.ts          # ✅ cors + json + GET /api/health
-│           ├── db.ts            # ✅ pg Pool + pingDb()
-│           └── routes/          # ▫ thin route files -> call lib services
+│           ├── main.ts                      # ✅ cors + json + route mounting + GET /api/health
+│           ├── db.ts                        # ✅ pg Pool (bigint→number) + pingDb()
+│           └── app/
+│               ├── routes/                  # ✅ auth, patients, availability, appointments (thin; requireAuth)
+│               ├── controllers/             # ✅ HTTP in/out only
+│               ├── services/                # ✅ business rules — no req/res, no SQL
+│               ├── repositories/            # ✅ parameterised SQL, one file per table area
+│               └── utils/                   # ✅ jwt, password, requireAuth, httpError, dates
 ├── libs/
-│   ├── shared/
-│   │   └── types/               # ✅ @baa/types — SlotKey, SlotStatus, AppointmentStatus, AuthUser…
-│   ├── web/
-│   │   ├── ui/                  # ✅ @baa/ui — MUI theme
-│   │   ├── auth/                # ▫ login, register, forgot / reset password
-│   │   ├── dashboard/           # ▫ patient/year/month selectors, add-patient dialog, calendar table
-│   │   ├── booking/             # ▫ book dialog, cancel popover, status popover
-│   │   └── admin/               # ▫ M6 — holidays, manual booking, metrics, dormant customers
-│   └── api/
-│       ├── data-access/         # ▫ pg queries (customers, patients, appointments, holidays)
-│       ├── auth/                # ▫ hashing, jwt, requireAuth / requireAdmin
-│       ├── availability/        # ▫ builds the month availability grid
-│       ├── appointments/        # ▫ book / cancel / list-mine + rules
-│       └── admin/               # ▫ M6 — holiday CRUD, manual booking, metrics, reports
-├── db/migrations/               # ▫ node-pg-migrate (M1)
+│   ├── shared/types/  (@baa/types)          # ✅ SlotKey + hour maps, SlotStatus, Patient,
+│   │                                        #    Availability/Appointment DTOs, AuthUser
+│   └── web/ui/  (@baa/ui)                   # ✅ MUI theme + SLOT_COLORS + MIN_PASSWORD_LENGTH
+├── db/
+│   ├── schema.sql                           # ✅ idempotent DDL — `npm run db:schema`
+│   └── apply.mjs
 ├── docs/
 └── .claude/skills/
 ```
 
-**Rule of thumb:** apps stay thin (wiring only); logic lives in `libs`. API
-routes don't run SQL directly — they call `libs/api/data-access`.
+**Rule of thumb:** routes stay thin; SQL only in `repositories/`; business rules
+in `services/`. `apps/api/tsconfig.app.json` `paths` include `@app/*` (→ `src/app/*`)
+and `@baa/types`; the esbuild build has `bundle: true` so those aliases resolve at
+runtime.
 
 ## Dependencies
 
 ### Installed now
 
-**web:** `react`, `react-dom`, `react-router-dom`, `@mui/material`, `@emotion/react`, `@emotion/styled`
-**api:** `express`, `pg`, `dotenv`, `cors`
+**web:** `react`, `react-dom`, `react-router-dom`, `@mui/material`, `@emotion/react`, `@emotion/styled` · (`@tanstack/react-query` is installed but unused — remove or adopt)
+**api:** `express`, `pg`, `dotenv`, `cors`, `bcryptjs`, `jsonwebtoken`
 **build (dev):** `nx` + `@nx/{react,vite,node,esbuild,js,web,workspace}`, `vite`, `@vitejs/plugin-react`, `esbuild`, `typescript`, `tslib`, `@types/*`
 
-### Add when the milestone needs it
+No migration tool — schema lives in `db/schema.sql` (idempotent, `npm run db:schema`).
+Date maths use the built-in `Date` on both sides; no `dayjs`. No `zod` — inputs
+are hand-validated.
+
+### Add when it's needed
 
 | Package | When | For |
 | --- | --- | --- |
-| `node-pg-migrate` | M1 | schema migrations |
-| `bcryptjs`, `jsonwebtoken` | M2 | password hashing, access tokens |
-| `zod` | M2 | request body validation (only where it pays off) |
-| `dayjs` | M3 | month length / weekday / Sunday detection (web + api) |
 | `nodemailer` | M6 | admin-cancellation emails (dev: console transport) |
+| `@playwright/test`, `@axe-core/playwright` | verification harness | headless browser checks — see [verification.md](verification.md) |
 | `@mui/x-charts` | only if the admin metrics ever need graphs (not planned) | — |
-| a state or data-fetching lib | only if plain React state + `fetch` genuinely stops scaling | — |
-| eslint / a test runner | when you want them | — |
+| eslint / a unit test runner | when you want them (M5) | — |
 
 ## Environment variables
 

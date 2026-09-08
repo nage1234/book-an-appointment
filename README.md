@@ -74,16 +74,18 @@ considered — in [docs/architecture.md](docs/architecture.md).
 
 ## Project status
 
-Spec-complete, boilerplate built, features not yet implemented. See
-[docs/plan.md](docs/plan.md) for the exact milestone breakdown:
+Auth, the availability dashboard, and booking/cancelling work end to end against
+Supabase. Still to do: forgot/reset password, the admin dashboard, the Playwright
+verification harness, and a polish pass. See [docs/plan.md](docs/plan.md):
 
 - ✅ **M0** — Nx workspace, React/Express boilerplate, MUI theme, DB connectivity
-- 🔨 **M1** — database migrations (customers, patients, appointments, holidays, password resets)
-- 🔨 **M2** — authentication *(login + register built; forgot/reset pending)*
-- 🔨 **M3** — availability dashboard *(static UI shell built; selects, grid, patient picker not yet wired to data)*
-- ⏭ **M4** — booking & cancelling
-- ⏭ **M5** — polish, lint, tests
+- ✅ **M1** — database (`db/schema.sql`, applied to Supabase)
+- 🔨 **M2** — auth *(login, register, JWT, route guard done; forgot/reset + `/admin` pending)*
+- ✅ **M3** — availability dashboard *(API + UI wired; browser visual check pending)*
+- ✅ **M4** — booking & cancelling *(API + dialogs wired)*
+- ⏭ **M5** — polish, lint, unit tests
 - ⏭ **M6** — admin dashboard (holidays, manual booking, metrics, dormant customers)
+- 🔨 **verification** — Playwright harness spec'd ([docs/verification.md](docs/verification.md)), not yet implemented
 
 ## Quick start
 
@@ -91,7 +93,8 @@ Nx 21 monorepo (npm). Requires Node ≥ 22.12 (developed on Node 26).
 
 ```bash
 npm ci
-cp .env.example .env          # fill in the Supabase DATABASE_URL
+cp .env.example .env          # fill in DATABASE_URL (Supabase) + JWT_SECRET
+npm run db:schema             # apply db/schema.sql (idempotent)
 
 npm run dev                   # web on :4200, api on :3000
 # or individually: 
@@ -126,4 +129,4 @@ See [docs/](docs/README.md):
 - [Plan](docs/plan.md) — build milestones
 - Specs: [Authentication](docs/spec/authentication.md) · [Dashboard](docs/spec/dashboard.md) · [Booking & cancelling](docs/spec/booking-and-cancelling.md)
 
-Repeatable dev workflows are in [.claude/skills/](.claude/skills/): `nx-scaffold`, `add-api-endpoint`, `add-web-feature`, `db-migration`, `ui-components`, `commit-changes`.
+Repeatable dev workflows are in [.claude/skills/](.claude/skills/): `nx-scaffold`, `add-api-endpoint`, `add-web-feature`, `db-migration`, `ui-components`, `commit_changes`.

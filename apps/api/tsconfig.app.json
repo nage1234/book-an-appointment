@@ -7,7 +7,8 @@
     "baseUrl": ".",
     "paths": {
       "@app/*": ["src/app/*"],
-      "@app/db": ["src/db.ts"]
+      "@app/db": ["src/db.ts"],
+      "@baa/types": ["../../libs/shared/types/src/index.ts"]
     }
   },
   "include": ["src/**/*.ts"]

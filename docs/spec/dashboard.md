@@ -14,12 +14,21 @@ Route: `/dashboard` · lib: `libs/web/dashboard` (`@baa/web-dashboard`)
 2. **Year** — MUI `Select`. Default: current year.
 3. **Month** — MUI `Select`. Default: current month.
 
-**Booking horizon (schema.md decision #5):** only the current month + the next
-two (3 months total) are selectable. Compute the 3 valid `(year, month)` pairs
-starting at today's month; **Year**'s options are the distinct years among
-them (usually 1, occasionally 2 when the window crosses a new year); **Month**'s
-options are filtered to just the months valid for the currently-selected year.
-Changing patient, year, or month re‑fetches availability.
+**View window vs. booking horizon:**
+
+- **View window** — the selectable `(year, month)` pairs run from **January of
+  two calendar years ago** through the **end of the booking horizon** (current
+  month + 2). This lets a customer look back at a patient's appointment history.
+  `helpers.ts` `viewWindow()` builds the list; **Year**'s options are the
+  distinct years among the pairs, and **Month**'s options are filtered to the
+  months valid for the currently-selected year. Defaults: current year / current
+  month. Changing patient, year, or month re‑fetches availability.
+- **Booking horizon (schema.md decision #5)** — only the current month + the
+  next two (3 months total) are bookable/editable (`helpers.ts` `bookingWindow()`
+  / `isMonthEditable()`). Months before it are **read-only history**: every slot
+  renders grey except the selected patient's own past bookings, which show as
+  blue with a *Completed* status dialog (no cancel action). The API enforces
+  this independently — see below.
 
 ## Patient selector
 
@@ -38,21 +47,21 @@ dashboard needs to know which one before it can colour the grid.
   instead of changing the current selection; if the dialog is cancelled, the
   selector reverts to whichever patient was selected before.
 
-### Add-patient dialog
+### Add-patient dialog — `docs/mockups/add_a_new_patient.png`
 
-Small MUI `Dialog`, opened from the selector:
+MUI `Dialog`, title **"Add New Patient"**, opened from the selector:
 
-| Field | Input | Notes |
-| --- | --- | --- |
-| Name | `TextField` | required |
-| Age | `TextField` (number) | optional |
-| Gender | `Select` — Male / Female / Other | optional |
-| Relation to you | `Select` — Self / Spouse / Father / Mother / Child / Sibling / Friend / Other | required |
+| Field | Input | Placeholder | Notes |
+| --- | --- | --- | --- |
+| Name | `TextField` | "Enter patient name" | required |
+| Age | `TextField` (number) | "Enter age" | optional |
+| Gender | `Select` — Male / Female / Other | "Select gender" | optional |
+| Relation | `TextField` (**free text**) | "e.g. Self, Spouse, Child, Parent" | required |
 
-Actions: **Cancel** (secondary button, closes without saving) / **Add patient**
-(primary button, disabled until Name + Relation are filled).
+Actions (bottom-right): **Cancel** (secondary button, closes without saving) /
+**Add** (primary button, disabled until Name + Relation are non-empty).
 
-On save: `POST /api/patients { name, age, gender, relation }` → `201 { patient }`.
+On **Add**: `POST /api/patients { name, age, gender, relation }` → `201 { patient }`.
 Add it to the in-memory patient list, select it, close the dialog, re-fetch
 availability for the new patient (an unbooked patient's grid is all green/grey).
 
@@ -85,7 +94,7 @@ Client just paints.
 | Colour | Meaning | Interactive? |
 | --- | --- | --- |
 | 🟥 red | Slot booked for **another patient** (anyone's — including the same customer's other patients) | No |
-| 🟦 blue | Slot booked for **the selected patient** — status `Booked` or `Completed` | Click the corner indicator → status / cancel popover (Spec 3) |
+| 🟦 blue | Slot booked for **the selected patient** — status `Booked` or `Completed` | Click → cancel / status dialog (Spec 3) |
 | 🟩 green | **Available** to book for the selected patient | Click → booking confirm dialog (Spec 3) |
 | ⬜ grey | **Unavailable** — Sunday, an admin-set holiday, or a past slot not booked for the selected patient | No |
 
@@ -96,15 +105,22 @@ for slots booked for the selected patient:
 those still show blue with a **derived** status of `Completed` (never stored —
 see schema.md), so a patient's own history remains visible.
 
-## Corner status indicator
+## Cell interaction
 
-- On every cell booked for the **selected patient** (blue cells), show a small
-  **red triangle in the bottom‑right corner** of the cell.
-- Clicking the indicator opens a **popover** anchored to it showing the
-  appointment status — `Booked` or `Completed` — and, when the status is
-  `Booked` **and** more than 1 hour remains before the slot starts, a
-  **Cancel appointment** action (Spec 3). Inside that 1-hour window the popover
-  shows the status only, no cancel action.
+| Cell | Hover tooltip | Click |
+| --- | --- | --- |
+| 🟩 green | "Available — click to book" | opens the **booking confirmation dialog** (Spec 3 A) |
+| 🟦 blue | "Booked for {selected patient name}" | opens the **cancel / status dialog** (Spec 3 B) |
+| 🟥 red | "Booked (another patient)" — no name shown | nothing |
+| ⬜ grey | the reason — "Sunday" / "Holiday" / "Past" | nothing |
+
+Blue cells also carry a small **red triangle in the bottom-right corner** as a
+visual marker of the selected patient's own bookings.
+
+The cancel/status dialog shows the appointment status (`Booked` / `Completed`)
+and, when status is `Booked` **and** more than 1 hour remains before the slot
+starts, a **Cancel appointment** action. Inside the 1-hour window, or once
+`Completed`, it shows status only.
 
 ## Data
 
@@ -131,7 +147,8 @@ Response:
       "date": "2026-09-01",
       "weekday": "Mon",          // dayjs short name
       "greyed": false,
-      "greyedReason": null,       // "sunday" | "holiday" | "past" | null
+      "greyedReason": null,       // "sunday" | "holiday" | null (whole-column greying;
+                                  //  past is per-slot: a slot's own status is "grey")
       "slots": [
         {
           "slot": "S10_11",
@@ -149,7 +166,12 @@ Response:
 ### How the API computes availability (`libs/api/availability`)
 
 1. `daysInMonth`, weekday per day — dayjs. Reject the request (`400`) if
-   `year`/`month` fall outside the 3-month booking horizon (schema.md decision #5).
+   `year`/`month` fall outside the **view window** (`viewHorizon`: Jan of two
+   years ago … end of the booking horizon). Months within the view window but
+   before the booking horizon return normally, but every non-booked slot is
+   `grey` (past), so history is visible without being editable. Booking and
+   cancelling are gated separately in their own endpoints against the 3-month
+   booking horizon (schema.md decision #5).
 2. Load `holidays` in range → set of dates.
 3. Load `appointments` in range where `status = 'booked'`, joined to `patients`
    for ownership, grouped by `(date, slot)`.
@@ -166,7 +188,9 @@ Response:
 
 - `patients: Patient[]`, `selectedPatientId` in `useState`; loaded once on mount
   from `GET /api/patients`. `selectedPatientId` defaults to the `self` patient.
-- `year` / `month` in `useState` (default: current). None of the three persisted.
+- `year` / `month` in `useState` (default: current year / current month). None
+  of the three persisted. Selectable range is `viewWindow()` (2 years back …
+  current + 2); only `bookingWindow()` months are editable.
 - Whenever patient, year, or month change, call `GET /api/availability` through
   the shared `fetch` wrapper; hold the response in `useState`.
 - After adding a patient, or after a booking/cancel (Spec 3) succeeds, just
@@ -180,14 +204,17 @@ Response:
   selected, with a blank (green/grey) grid.
 - Selecting a different patient repaints the grid for that patient.
 - Selecting a year+month renders the correct number of day columns with correct weekdays.
-- Year/Month options never go past the 3-month booking horizon.
+- Year/Month options span Jan of two years ago through current month + 2; months
+  before the current month load as read-only history (all slots grey except the
+  patient's own past bookings), and never past current month + 2.
 - Sundays and admin-set holidays render as fully grey, non‑clickable columns.
 - Past dates in the current month are grey, except any slot booked for the
   selected patient, which stays blue with status `Completed`.
 - A slot booked for another patient is red; the selected patient's own booking is
   blue with a corner indicator.
 - The grid scrolls horizontally with header row and slot labels pinned.
-- Clicking a blue cell's indicator shows the appointment status.
+- Hovering a cell shows the right tooltip; a blue cell's tooltip names the selected patient.
+- Clicking a green cell opens the booking dialog; clicking a blue cell opens the cancel/status dialog.
 
 ## Out of scope
 

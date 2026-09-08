@@ -37,20 +37,19 @@ selector) — not the logged-in customer directly.
 
 ## B. Cancel a booking
 
-**Trigger:** customer clicks the red **corner indicator** on the selected
-patient's 🟦 blue cell.
+**Trigger:** customer clicks the selected patient's 🟦 blue cell.
 
 **Flow:**
-1. A **popover** opens anchored to the indicator showing the status line
-   (`Booked` / `Completed`).
+1. A **dialog** opens showing the appointment line (*"{patient} — Wed, 12 Sep,
+   3:00–4:00 PM — Booked"*).
 2. If status is **`Booked`** *and* more than **1 hour** remains before the
-   slot's start time: the popover also shows *"Do you want to cancel this
-   appointment?"* with **No** / **Yes, cancel**.
-   - Otherwise (`Completed`, or `Booked` but within 1 hour of start): popover
-     shows status only, no cancel action.
+   slot's start time: the dialog asks *"Do you want to cancel this appointment?"*
+   with **Keep it** / **Yes, cancel**.
+   - Otherwise (`Completed`, or `Booked` but within 1 hour of start): the dialog
+     shows status only and a single **Close** button — no cancel action.
 3. On **Yes, cancel** → `POST /api/appointments/{id}/cancel`.
 4. On `200`:
-   - Close the popover, success snackbar.
+   - Close the dialog, success snackbar.
    - Re-fetch availability → cell is 🟩 green again, indicator gone.
 5. On `409` (too close to start time, already completed, or already cancelled)
    → snackbar *"This appointment can no longer be cancelled"*, refetch.
@@ -104,8 +103,8 @@ Errors: `400` invalid slot/date/out-of-horizon · `401` no token · `403` not th
 - Clicking green → confirm → Yes books the slot for the selected patient; cell turns blue with indicator.
 - Booking a slot another tab just took shows a clean `409` message and the grid corrects itself.
 - A patient who already has an active booking gets a clear `409` trying to book a second one.
-- Clicking the indicator on a `Booked` cell more than 1 hour before start → confirm → Yes frees the slot (turns green).
-- Within 1 hour of the slot start (or once it's `Completed`), the cancel action is unavailable.
+- Clicking a `Booked` blue cell more than 1 hour before start → dialog → Yes, cancel → frees the slot (turns green).
+- Within 1 hour of the slot start (or once it's `Completed`), the dialog shows status only, no cancel action.
 - A customer cannot cancel an appointment that isn't one of their patients' (`403`).
 - A past date/time cell where the selected patient was `Booked` shows as `Completed`, still with the blue indicator.
 - Past dates are greyed out except the selected patient's own booked/completed dates.

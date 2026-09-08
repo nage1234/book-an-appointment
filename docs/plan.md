@@ -24,70 +24,67 @@ Principle: no package or abstraction until a milestone actually needs it.
   api, types; `nx serve api` + `nx serve web` both boot; `/api/health` responds
   (`db:false` until a real `.env` — expected).
 
-## M1 — Database
+## M1 — Database ✅ DONE
 
-- Add `node-pg-migrate`; `db/migrations` wired to `DATABASE_URL`.
-- Migration 1: enums (`appointment_status` = `booked`/`cancelled` only — no
-  `in_progress`; `created_by` = `customer`/`admin`), `customers`, `patients`,
-  `appointments` (`patient_id` FK, `created_by` default `customer`, partial
-  unique index), `holidays`, `password_reset_tokens`. → **`db-migration`** skill.
-- Seed: one admin user.
-- **Check:** `npm run migrate up` applies cleanly against Supabase.
+- No migration tool. `db/schema.sql` (idempotent) + `db/apply.mjs`, run with
+  `npm run db:schema`. Applied against Supabase 2026-09-07.
+- Tables `customers` / `patients` / `appointments` were hand-created; the script
+  added `holidays`, the `appointments.patient_id → patients.id` FK, the partial
+  unique index `(appointment_date, slot) WHERE status = 'booked'`, and tightened
+  nullability / defaults. `db.ts` parses bigint → JS `number`.
+- `patients.relation` / `gender` are free text (mockup-driven). No enums; no
+  `password_reset_tokens` yet (that's the forgot-password leftover in M2).
 
-## M2 — Authentication ([spec](spec/authentication.md))
+## M2 — Authentication ([spec](spec/authentication.md)) — login/register/guard DONE, forgot/reset pending
 
-- Add `bcryptjs`, `jsonwebtoken` (+ `zod` if it earns its place).
-- `libs/api/data-access`: customer + reset-token queries; registration also
-  inserts the auto-created `self` patient (same transaction).
-- `libs/api/auth`: hashing, jwt, `requireAuth`, `requireAdmin`.
-- `apps/api/src/routes/auth.ts`: register / login / me / forgot / reset.
-- `libs/web/auth`: the 4 screens (plain controlled inputs + React state).
-- `apps/web/src/app/AuthContext.tsx`: React Context holding `{ token, user }`
-  (mirrored to `localStorage` key `baa.auth`), a `login()`/`logout()` pair, and
-  a `useAuth()` hook. Provider wraps `<App/>` in `main.tsx`, inside `<BrowserRouter>`.
-- `apps/web/src/app/apiFetch.ts`: the one shared `fetch` wrapper — prefixes
-  `VITE_API_URL`, adds `Authorization: Bearer` from `useAuth()`'s token, and
-  calls `logout()` + redirects to `/login` on `401`. No Redux/RTK — Context
-  covers this app's one piece of global state.
-- Route guards (`<RequireAuth>`, `<RequireAuth role="admin">`) read `useAuth()`;
-  type‑based redirect; `/admin` placeholder page ("Welcome Admin").
-- **Check:** register → dashboard; admin login → `/admin` shows "Welcome Admin";
-  forgot/reset via the console link; refresh keeps the session. →
-  **`add-api-endpoint`** / **`add-web-feature`**.
+- `bcryptjs` + `jsonwebtoken` installed. Password base64-decoded server-side.
+- `apps/api/src/app/`: `repositories/auth.ts`, `services/auth.ts` (register also
+  inserts the `Self` patient), `utils/{jwt,password,requireAuth,httpError}.ts`,
+  `controllers/auth.ts`, `routes/auth.ts` at `/api/auth`.
+- `apps/web/.../authentication/`: `login.tsx`, `register.tsx`, `useAuth.tsx`
+  (AuthContext: `{token,user}` + `login`/`register`/`logout`, `localStorage`
+  `baa.auth`), `useApiFetch.ts` (bearer header, 401 → logout + `/login`).
+- `<RequireAuth>` guards `/dashboard`. `/admin`, forgot/reset screens not built.
+- **Verified:** register → auto Self patient → dashboard; login; 401 → redirect.
 
-## M3 — Dashboard ([spec](spec/dashboard.md))
+## M3 — Dashboard ([spec](spec/dashboard.md)) ✅ DONE (API + UI wired)
 
-- Add `dayjs` (web + api).
-- `libs/api/data-access`: patient queries; routes `GET/POST /api/patients`.
-- `libs/api/availability`: month grid computation, keyed by `patientId`;
-  `GET /api/availability?year&month&patientId`.
-- `libs/web/dashboard`: patient select (+ "Add a new patient" dialog), year/month
-  selects constrained to the 3-month booking horizon, sticky scrollable grid,
-  cell colours, corner indicator + status popover (read-only for now).
-- **Check:** new customer sees their auto-created "Self" patient pre-selected;
-  adding a patient shows it in the select; correct day count + weekdays; Sundays
-  / past dates grey (except the selected patient's own past bookings, shown
-  `Completed`); seed appointments in the DB and see red/blue per patient; Year/
-  Month options never exceed the 3-month horizon.
+- `apps/api/src/app/`: `repositories/{patients,appointments,holidays}.ts`,
+  `services/{patients,availability}.ts`, `utils/dates.ts`, controllers + routes
+  for `GET/POST /api/patients` and `GET /api/availability?year&month&patientId`.
+- Availability computed server-side per patient (blue-first ordering; Sunday /
+  holiday / past greying; 3-month horizon check). Built-in `Date`, no dayjs.
+- `apps/web/.../dashboard/`: patient / year+month (window-constrained) selects,
+  scrollable sticky grid, hover tooltips, `AddPatientDialog` (per mockup),
+  loading / error states — wired to `useApiFetch`.
+- **Verified via API tests.** Browser visual check pending (Playwright).
 
-## M4 — Booking & cancelling ([spec](spec/booking-and-cancelling.md))
+## M4 — Booking & cancelling ([spec](spec/booking-and-cancelling.md)) ✅ DONE
 
-- `libs/api/appointments`: `bookAppointment(patientId, ...)`, `cancelAppointment`,
-  `listMine(patientId)` + routes.
-- `libs/web/booking`: confirm dialog on green cells (booking for the selected
-  patient), cancel popover on the indicator, snackbars, refetch after mutate.
-- **Check:** book green → blue for the selected patient; a patient with an
-  active booking gets `409` trying to book another; cancel → green if more than
-  1 hour before start, blocked (`409`) inside that window; can't touch another
-  customer's patients.
+- `services/appointments.ts`: `bookAppointment` (past / Sunday / holiday /
+  horizon checks, one-active-per-patient, 23505 → 409) and `cancelAppointment`
+  (ownership, `status='booked'`, >1h before start). Routes
+  `POST /api/appointments` and `POST /api/appointments/:id/cancel`.
+- `apps/web/.../dashboard/`: `ConfirmDialog` for book (green cell) and cancel
+  (blue cell — completed / <1h / cancellable branches), Snackbar, refetch after
+  each mutation.
+- **Verified via API tests:** book → blue; second booking same patient → 409;
+  cancel → green; unknown / foreign appointment → 404 / 403.
+
+## Browser verification (parallel track — [verification.md](verification.md))
+
+- Standalone Playwright: harness (`playwright.config.ts` + `e2e/`) + `dashboard.spec.ts`
+  now; a spec per screen as features settle. Assertions + screenshots + axe, 3 viewports.
+- Set up alongside M3, not gated behind M5.
 
 ## M5 — Polish
 
 - Loading / empty / error states, buttons disabled while submitting.
 - Responsive pass (see `ui-components` skill); a11y on colour (icon/letter, not
   colour alone).
-- Add a test runner + a few tests (grid colour logic, booking rules, the
-  concurrency 409) and eslint if wanted.
+- Add a unit test runner + a few tests (grid colour logic, booking rules, the
+  concurrency 409) and eslint if wanted. Tighten Playwright axe gate; consider
+  visual-regression baselines now the UI is stable.
 
 ## M6 — Admin dashboard ([spec](spec/admin-dashboard.md))
 

@@ -6,7 +6,8 @@
     "dev": "nx run-many -t serve -p web api",
     "web": "nx serve web",
     "api": "nx serve api",
-    "build": "nx run-many -t build -p web api"
+    "build": "nx run-many -t build -p web api",
+    "db:schema": "node db/apply.mjs"
   },
   "private": true,
   "devDependencies": {
