@@ -33,7 +33,6 @@ const stickyLabel = {
   left: 0,
   zIndex: 2,
   bgcolor: 'grey.50',
-  borderRight: '1px solid',
   borderColor: 'grey.300',
   display: 'flex',
   alignItems: 'center',

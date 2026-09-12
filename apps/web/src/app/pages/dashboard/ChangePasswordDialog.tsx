@@ -12,6 +12,11 @@ import TextField from '@mui/material/TextField';
 import { MIN_PASSWORD_LENGTH } from '@baa/types';
 import { encodePassword, useAuth } from '../authentication/useAuth';
 import { useApiFetch } from '../authentication/useApiFetch';
+import OutlinedInput from '@mui/material/OutlinedInput';
+import InputAdornment from '@mui/material/InputAdornment';
+import IconButton from '@mui/material/IconButton';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 
 interface Props {
   open: boolean;
@@ -28,6 +33,24 @@ export function ChangePasswordDialog({ open, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+
+  const handleClickShowPassword = () => setShowOldPassword((show) => !show);
+  const handleMouseDownPassword = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+  };
+  const handleMouseUpPassword = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+  };
+
+  const handleClickShowNewPassword = () => setShowNewPassword((show) => !show);
+  const handleMouseDownNewPassword = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+  };
+  const handleMouseUpNewPassword = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+  };
 
   const reset = () => {
     setOldPassword('');
@@ -101,11 +124,24 @@ export function ChangePasswordDialog({ open, onClose }: Props) {
                 <FormLabel htmlFor="cp-old" sx={{ display: 'block', mb: 0.5 }}>
                   Old password
                 </FormLabel>
-                <TextField
+                <OutlinedInput
                   id="cp-old"
                   type="password"
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
+                  endAdornment={
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label="toggle password visibility"
+                        onClick={handleClickShowPassword}
+                        onMouseDown={handleMouseDownPassword}
+                        onMouseUp={handleMouseUpPassword}
+                        edge="end"
+                      >
+                        {showOldPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  }
                   required
                   fullWidth
                   autoFocus
@@ -117,10 +153,23 @@ export function ChangePasswordDialog({ open, onClose }: Props) {
                 <FormLabel htmlFor="cp-new" sx={{ display: 'block', mb: 0.5 }}>
                   New password
                 </FormLabel>
-                <TextField
+                <OutlinedInput
                   id="cp-new"
                   type="password"
                   value={newPassword}
+                  endAdornment={
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label="toggle password visibility"
+                        onClick={handleClickShowNewPassword}
+                        onMouseDown={handleMouseDownNewPassword}
+                        onMouseUp={handleMouseUpNewPassword}
+                        edge="end"
+                      >
+                        {showNewPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  }
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
                   fullWidth
@@ -132,7 +181,7 @@ export function ChangePasswordDialog({ open, onClose }: Props) {
                 <FormLabel htmlFor="cp-confirm" sx={{ display: 'block', mb: 0.5 }}>
                   Confirm new password
                 </FormLabel>
-                <TextField
+                <OutlinedInput
                   id="cp-confirm"
                   type="password"
                   value={confirmPassword}

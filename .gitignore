@@ -49,4 +49,5 @@ Thumbs.db
 .github/instructions/nx.instructions.md
 
 vite.config.*.timestamp*
-vitest.config.*.timestamp*demos/
+vitest.config.*.timestamp*
+demos/
