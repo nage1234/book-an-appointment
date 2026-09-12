@@ -14,6 +14,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import type {
   AvailabilityResponse,
+  CustomerSummary,
   DayAvailability,
   Patient,
   SlotAvailability,
@@ -23,6 +24,7 @@ import { useAuth } from '../authentication/useAuth';
 import { useApiFetch } from '../authentication/useApiFetch';
 import { AvailabilityGrid } from './AvailabilityGrid';
 import { AddPatientDialog, type NewPatient } from './AddPatientDialog';
+import { ChangePasswordDialog } from './ChangePasswordDialog';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
   MONTHS,
@@ -54,10 +56,19 @@ function LogoutGlyph() {
   );
 }
 
-function ProfileMenu() {
+function KeyGlyph() {
+  return (
+    <Box component="svg" viewBox="0 0 24 24" sx={{ width: 18, height: 18, fill: 'currentColor', mr: 1 }}>
+      <path d="M12.65 10A5.99 5.99 0 0 0 7 6a6 6 0 1 0 5.65 8H15v2h2v2h4v-4h-3.35A6.02 6.02 0 0 0 18 10h-5.35zM7 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" />
+    </Box>
+  );
+}
+
+export function ProfileMenu() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   const initials = (user?.name ?? 'NS')
     .split(' ')
@@ -93,6 +104,15 @@ function ProfileMenu() {
         <MenuItem
           onClick={() => {
             setAnchorEl(null);
+            setChangePasswordOpen(true);
+          }}
+        >
+          <KeyGlyph />
+          Change password
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setAnchorEl(null);
             logout();
             navigate('/login');
           }}
@@ -102,18 +122,29 @@ function ProfileMenu() {
           Sign out
         </MenuItem>
       </Menu>
+      <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
     </>
   );
 }
 
 type SlotDialog = { mode: 'book' | 'cancel'; day: DayAvailability; slot: SlotAvailability };
 
-export function DashboardCustomer() {
+/**
+ * The availability dashboard — the same component for customer (`/dashboard`) and
+ * the admin Dashboard tab. Admins get an extra Customer selector and use the
+ * `/api/admin/*` endpoints (bypass limits, cancellation emails).
+ */
+export function AvailabilityDashboard({ hideHeader = false }: { hideHeader?: boolean }) {
   const apiFetch = useApiFetch();
+  const { user } = useAuth();
+  const isAdmin = user?.type === 'admin';
+
+  const [customers, setCustomers] = useState<CustomerSummary[]>([]);
+  const [customerId, setCustomerId] = useState<number | null>(null);
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  // All selectable months (2 years back … current + 2); booking/edit is limited to bookingWindow.
+
   const window = useMemo(() => viewWindow(), []);
   const current = useMemo(() => bookingWindow()[0], []);
   const [year, setYear] = useState<number>(current.year);
@@ -128,17 +159,41 @@ export function DashboardCustomer() {
   const [busy, setBusy] = useState(false);
   const [snack, setSnack] = useState<string | null>(null);
 
-  const selectedPatient = patients.find((p) => p.id === selectedId) ?? "";
+  const selectedPatient = patients.find((p) => p.id === selectedId) ?? null;
+  const needsCustomer = isAdmin && customerId === null;
+
+  // Admin: load the customer list once.
+  useEffect(() => {
+    if (!isAdmin) return;
+    apiFetch<{ customers: CustomerSummary[] }>('/admin/customers')
+      .then((r) => setCustomers(r.customers))
+      .catch((err) => setError(err instanceof Error ? err.message : 'Could not load customers.'));
+  }, [isAdmin, apiFetch]);
 
   const loadPatients = useCallback(async () => {
+    if (isAdmin) {
+      if (customerId === null) {
+        setPatients([]);
+        setSelectedId(null);
+        return;
+      }
+      const { patients: list } = await apiFetch<{ patients: Patient[] }>(
+        `/admin/customers/${customerId}/patients`
+      );
+      setPatients(list);
+      setSelectedId(list[0]?.id ?? null);
+      return;
+    }
     const { patients: list } = await apiFetch<{ patients: Patient[] }>('/patients');
     setPatients(list);
     setSelectedId((prev) => prev ?? list[0]?.id ?? null);
-    return list;
-  }, [apiFetch]);
+  }, [apiFetch, isAdmin, customerId]);
 
   const loadAvailability = useCallback(async () => {
-    if (selectedId === null) return;
+    if (selectedId === null) {
+      setAvailability(null);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -165,7 +220,6 @@ export function DashboardCustomer() {
   }, [loadAvailability]);
 
   const handleSlotClick = (day: DayAvailability, slot: SlotAvailability) => {
-    // Past months are view-only: still let the patient inspect their own bookings.
     if (slot.status === 'green' && isMonthEditable({ year, month: monthNum })) {
       setDialog({ mode: 'book', day, slot });
     } else if (slot.status === 'blue') {
@@ -177,7 +231,7 @@ export function DashboardCustomer() {
     if (!dialog || !selectedPatient) return;
     setBusy(true);
     try {
-      await apiFetch('/appointments', {
+      await apiFetch(isAdmin ? '/admin/appointments' : '/appointments', {
         method: 'POST',
         body: JSON.stringify({
           date: dialog.day.date,
@@ -190,40 +244,40 @@ export function DashboardCustomer() {
           dialog.slot.slot
         )}.`
       );
-      setDialog(null);
-      await loadAvailability();
     } catch (err) {
       setSnack(err instanceof Error ? err.message : 'Booking failed.');
-      setDialog(null);
-      await loadAvailability();
     } finally {
+      setDialog(null);
       setBusy(false);
+      await loadAvailability();
     }
   };
 
   const confirmCancel = async () => {
     if (!dialog?.slot.appointment) return;
     setBusy(true);
+    const id = dialog.slot.appointment.id;
     try {
-      await apiFetch(`/appointments/${dialog.slot.appointment.id}/cancel`, { method: 'POST' });
-      setSnack('Appointment cancelled.');
-      setDialog(null);
-      await loadAvailability();
+      await apiFetch(
+        isAdmin ? `/admin/appointments/${id}/cancel` : `/appointments/${id}/cancel`,
+        { method: 'POST' }
+      );
+      setSnack(isAdmin ? 'Appointment cancelled — the customer has been emailed.' : 'Appointment cancelled.');
     } catch (err) {
       setSnack(err instanceof Error ? err.message : 'Cancellation failed.');
-      setDialog(null);
-      await loadAvailability();
     } finally {
+      setDialog(null);
       setBusy(false);
+      await loadAvailability();
     }
   };
 
   const handleAddPatient = async (np: NewPatient) => {
     try {
-      const { patient } = await apiFetch<{ patient: Patient }>('/patients', {
-        method: 'POST',
-        body: JSON.stringify(np),
-      });
+      const { patient } = await apiFetch<{ patient: Patient }>(
+        isAdmin ? `/admin/customers/${customerId}/patients` : '/patients',
+        { method: 'POST', body: JSON.stringify(np) }
+      );
       await loadPatients();
       setSelectedId(patient.id);
       setAddOpen(false);
@@ -237,22 +291,61 @@ export function DashboardCustomer() {
   const editable = isMonthEditable({ year, month: monthNum });
 
   return (
-    <Box sx={{ maxWidth: 1400, mx: 'auto', p: { xs: 2, md: 4 } }}>
-      {/* Header */}
-      <Stack direction="row" spacing={2} sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: 24, md: 32 } }}>
-            Appointment Booking System
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 0.5 }}>
-            Select your preferred year, month, and one-hour time slots below.
-          </Typography>
+    <Box sx={{ maxWidth: 1400, mx: 'auto', p: hideHeader ? 0 : { xs: 2, md: 4 } }}>
+      {!hideHeader && (
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}
+        >
+          <Box>
+            <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: 24, md: 32 } }}>
+              Appointment Booking System
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
+              Select your preferred year, month, and one-hour time slots below.
+            </Typography>
+          </Box>
+          <ProfileMenu />
+        </Stack>
+      )}
+
+      {/* Admin: customer selector */}
+      {isAdmin && (
+        <Box sx={{ mt: hideHeader ? 0 : 4, maxWidth: 520 }}>
+          <FormLabel htmlFor="customer" sx={{ display: 'block', mb: 0.5 }}>
+            Customer
+          </FormLabel>
+          <Select
+            id="customer"
+            value={customerId === null ? '' : String(customerId)}
+            displayEmpty
+            onChange={(e) => {
+              setSelectedId(null);
+              setAvailability(null);
+              setCustomerId(e.target.value === '' ? null : Number(e.target.value));
+            }}
+            renderValue={(v) => {
+              if (v === '') return 'Select a customer';
+              const c = customers.find((x) => String(x.id) === v);
+              return c ? `${c.name} (${c.email_id})` : '';
+            }}
+            fullWidth
+          >
+            <MenuItem value="" disabled>
+              Select a customer
+            </MenuItem>
+            {customers.map((c) => (
+              <MenuItem key={c.id} value={String(c.id)}>
+                {c.name} ({c.email_id})
+              </MenuItem>
+            ))}
+          </Select>
         </Box>
-        <ProfileMenu />
-      </Stack>
+      )}
 
       {/* Appointment for */}
-      <Box sx={{ mt: 4, maxWidth: 520 }}>
+      <Box sx={{ mt: isAdmin ? 3 : hideHeader ? 0 : 4, maxWidth: 520 }}>
         <FormLabel htmlFor="patient" sx={{ display: 'block', mb: 0.5 }}>
           Appointment for
         </FormLabel>
@@ -260,16 +353,17 @@ export function DashboardCustomer() {
           id="patient"
           value={selectedId === null ? '' : String(selectedId)}
           displayEmpty
+          disabled={needsCustomer}
           onChange={(e) => {
             const v = e.target.value;
             if (v === ADD_PATIENT) {
               setAddOpen(true);
               return;
             }
-            setSelectedId(v === CHOOSE_PATIENT ? null : Number(v));
+            setSelectedId(v === '' ? null : Number(v));
           }}
           renderValue={(v) =>
-            v ===  "" ? CHOOSE_PATIENT : patients.find((p) => String(p.id) === v)?.name
+            v === '' ? CHOOSE_PATIENT : patients.find((p) => String(p.id) === v)?.name ?? ''
           }
           fullWidth
         >
@@ -281,12 +375,14 @@ export function DashboardCustomer() {
               {p.name}
             </MenuItem>
           ))}
-          <MenuItem
-            value={ADD_PATIENT}
-            sx={{ color: '#2e7d32', fontWeight: 600, borderTop: '1px solid', borderColor: 'grey.200' }}
-          >
-            + Add new patient
-          </MenuItem>
+          {!needsCustomer && (
+            <MenuItem
+              value={ADD_PATIENT}
+              sx={{ color: '#2e7d32', fontWeight: 600, borderTop: '1px solid', borderColor: 'grey.200' }}
+            >
+              + Add new patient
+            </MenuItem>
+          )}
         </Select>
       </Box>
 
@@ -333,7 +429,24 @@ export function DashboardCustomer() {
         </Box>
       </Stack>
 
-      {/* Availability grid */}
+      {needsCustomer && (
+        <Typography variant="body2" sx={{ mt: 3, color: 'text.secondary', fontStyle: 'italic' }}>
+          Select a customer to begin.
+        </Typography>
+      )}
+
+      {error && (
+        <Alert severity="error" sx={{ mt: 3 }}>
+          {error}
+        </Alert>
+      )}
+
+      {loading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+          <CircularProgress />
+        </Box>
+      )}
+
       {!loading && !error && selectedPatient && days.length > 0 && (
         <>
           <Box sx={{ mt: 4 }}>
@@ -350,24 +463,11 @@ export function DashboardCustomer() {
                   Read-only history — booking is limited to the current and next two months.
                 </Typography>
               )}
-              {days.length > 0 && (
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Scroll horizontally to view all {days.length} days →
-                </Typography>
-              )}
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                Scroll horizontally to view all {days.length} days →
+              </Typography>
             </Stack>
 
-            {error && (
-              <Alert severity="error" sx={{ mt: 1.5 }}>
-                {error}
-              </Alert>
-            )}
-
-            {loading && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-                <CircularProgress />
-              </Box>
-            )}
             <AvailabilityGrid
               days={days}
               patientName={selectedPatient.name}
@@ -375,7 +475,6 @@ export function DashboardCustomer() {
             />
           </Box>
 
-          {/* Note + legend */}
           <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>
             Note: Each time slot is 1 hour in duration. Click a green slot to book, a blue slot to manage it.
           </Typography>
@@ -421,7 +520,8 @@ export function DashboardCustomer() {
         (() => {
           const when = `${formatDayLabel(dialog.day.date)}, ${formatSlotRange(dialog.slot.slot)}`;
           const appt = dialog.slot.appointment;
-          if (appt?.status === 'completed') {
+          // Customer: a completed appointment shows status only. Admin can cancel anything.
+          if (!isAdmin && appt?.status === 'completed') {
             return (
               <ConfirmDialog
                 open
@@ -442,9 +542,11 @@ export function DashboardCustomer() {
               title="Cancel appointment"
               body={
                 <>
-                  <strong>{selectedPatient.name}</strong> — {when} — Booked.
+                  <strong>{selectedPatient.name}</strong> — {when} —{' '}
+                  {appt?.status === 'completed' ? 'Completed' : 'Booked'}.
                   <br />
                   Do you want to cancel this appointment?
+                  {isAdmin && <><br /><em>The customer will be emailed.</em></>}
                 </>
               }
               confirmLabel={busy ? 'Cancelling…' : 'Yes, cancel'}
@@ -467,4 +569,4 @@ export function DashboardCustomer() {
   );
 }
 
-export default DashboardCustomer;
+export default AvailabilityDashboard;

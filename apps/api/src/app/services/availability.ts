@@ -9,6 +9,7 @@ import {
 } from '@baa/types';
 import { HttpError } from '@app/utils/httpError';
 import { findPatientForCustomer } from '@app/repositories/patients';
+import { pool } from '@app/db';
 import { bookedInRange } from '@app/repositories/appointments';
 import { holidaysInRange } from '@app/repositories/holidays';
 import { daysInMonth, isoDate, viewHorizon, weekdayShort } from '@app/utils/dates';
@@ -17,7 +18,8 @@ export async function getAvailability(
   customerId: number,
   year: number,
   month1: number,
-  patientId: number
+  patientId: number,
+  isAdmin = false
 ): Promise<AvailabilityResponse> {
   if (
     !Number.isInteger(year) ||
@@ -29,8 +31,14 @@ export async function getAvailability(
     throw new HttpError(400, 'Invalid year, month, or patientId');
   }
 
-  const patient = await findPatientForCustomer(patientId, customerId);
-  if (!patient) throw new HttpError(403, 'That patient is not yours');
+  // Admins may view any patient's grid; customers only their own.
+  if (isAdmin) {
+    const { rows } = await pool.query(`select 1 from patients where id = $1`, [patientId]);
+    if (!rows[0]) throw new HttpError(404, 'Patient not found');
+  } else {
+    const patient = await findPatientForCustomer(patientId, customerId);
+    if (!patient) throw new HttpError(403, 'That patient is not yours');
+  }
 
   const now = new Date();
   const { start: viewStart, end: viewEnd } = viewHorizon(now);

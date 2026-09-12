@@ -17,3 +17,7 @@ export async function findCustomerByEmail(email: string) {
   return rows[0] ?? null;
 }
 
+export async function updatePasswordByEmail(email: string, passwordHash: string): Promise<void> {
+  await pool.query(`update customers set password = $1 where email_id = $2`, [passwordHash, email]);
+}
+

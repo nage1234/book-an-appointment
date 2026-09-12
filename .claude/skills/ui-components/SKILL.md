@@ -18,23 +18,23 @@ colours/sizes that duplicate what's below.
 | `color.secondary` | `#D3D7D7` | secondary button background (e.g. "Cancel") |
 | `color.text` | `#676363` | **all** component text — labels, inputs, body, headings |
 | `font.family` | `Arial, Helvetica, sans-serif` | everything |
-| `font.size.base` | `16px` | default for text, labels, buttons, links |
+| `font.size.base` | `14px` | default for text, labels, buttons, links |
 
 ## Rules
 
 ### Buttons
 - Background: **primary** `#54A0D6`; **secondary / Cancel** `#D3D7D7`.
 - **No border.**
-- Font size **16**, **bold** (700).
+- Font size **14**, **bold** (700).
 - No elevation, no uppercase transform (keep the label as written).
 - Text colour: secondary buttons use `#676363`. Primary buttons use `#FFFFFF`
   for contrast on the blue — *assumption, confirm with the user; not yet specified.*
 
 ### Labels (form labels)
-- Arial, size **16**, colour `#676363`.
+- Arial, size **14**, colour `#676363`.
 
 ### Links (e.g. "Forgot password?")
-- Size **16**, colour `#54A0D6`.
+- Size **14**, colour `#54A0D6`.
 
 ### Everything else
 - Default text colour across all components is `#676363`.
@@ -74,27 +74,27 @@ export const theme = createTheme({
   },
   typography: {
     fontFamily: FONT,
-    fontSize: 16,
+    fontSize: 14,
     allVariants: { color: TEXT },
-    button: { fontSize: 16, fontWeight: 700, textTransform: 'none' },
+    button: { fontSize: 14, fontWeight: 700, textTransform: 'none' },
   },
   components: {
     MuiButton: {
       defaultProps: { disableElevation: true, variant: 'contained' },
       styleOverrides: {
-        root: { border: 'none', fontSize: 16, fontWeight: 700, textTransform: 'none' },
+        root: { border: 'none', fontSize: 14, fontWeight: 700, textTransform: 'none' },
         containedPrimary: { backgroundColor: PRIMARY, color: '#FFFFFF' },
         containedSecondary: { backgroundColor: SECONDARY, color: TEXT },
       },
     },
     MuiLink: {
-      styleOverrides: { root: { fontSize: 16, color: PRIMARY, fontWeight: 400 } },
+      styleOverrides: { root: { fontSize: 14, color: PRIMARY, fontWeight: 400 } },
     },
     MuiFormLabel: {
-      styleOverrides: { root: { fontFamily: FONT, fontSize: 16, color: TEXT } },
+      styleOverrides: { root: { fontFamily: FONT, fontSize: 14, color: TEXT } },
     },
     MuiInputBase: {
-      styleOverrides: { root: { fontSize: 16, color: TEXT } },
+      styleOverrides: { root: { fontSize: 14, color: TEXT } },
     },
     MuiTypography: {
       styleOverrides: { root: { color: TEXT } },

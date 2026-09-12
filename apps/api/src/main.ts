@@ -6,6 +6,7 @@ import authRouter from './app/routes/auth';
 import patientsRouter from './app/routes/patients';
 import availabilityRouter from './app/routes/availability';
 import appointmentsRouter from './app/routes/appointments';
+import adminRouter from './app/routes/admin';
 
 const host = process.env.HOST ?? 'localhost';
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
@@ -19,6 +20,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/patients', patientsRouter);
 app.use('/api/availability', availabilityRouter);
 app.use('/api/appointments', appointmentsRouter);
+app.use('/api/admin', adminRouter);
 
 app.get('/api/health', async (_req, res) => {
   const db = await pingDb();

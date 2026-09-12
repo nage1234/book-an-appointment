@@ -7,10 +7,9 @@ import FormLabel from '@mui/material/FormLabel';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { MIN_PASSWORD_LENGTH } from '@baa/types';
 import { useAuth } from './useAuth';
 import logo from '../../../assets/logo.png';
-
-const MIN_PASSWORD = 8;
 
 export function Register() {
   const navigate = useNavigate();
@@ -27,8 +26,8 @@ export function Register() {
     e.preventDefault();
     setError(null);
 
-    if (password.length < MIN_PASSWORD) {
-      setError(`Password must be at least ${MIN_PASSWORD} characters.`);
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
     if (password !== confirmPassword) {

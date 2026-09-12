@@ -118,14 +118,12 @@ Rules, enforced as noted:
   slot is grey). Months outside `[Jan of year−2 … end of booking horizon]` → `400`.
 - Cancelling sets `status = 'cancelled'` (soft) so the slot frees up and history is kept.
 
-### `password_reset_tokens`
-| column | type | notes |
-| --- | --- | --- |
-| `id` | `bigint` identity | **PK** |
-| `customer_id` | `bigint` | FK → `customers.id` |
-| `token_hash` | `text` | sha‑256 of the emailed token |
-| `expires_at` | `timestamptz` | e.g. now + 30 min |
-| `used_at` | `timestamptz` | null until consumed |
+### ~~`password_reset_tokens`~~ — superseded, never created
+
+[CR-1](cr/CR-1-forgot-and-change-password.md) replaced the token-based
+forgot-password flow this table was for with a simpler one: generate a new
+password server-side and email it directly, no token/expiry bookkeeping. The
+table was never created in the DB — nothing to drop.
 
 ### `holidays` — admin-managed clinic closures
 

@@ -6,14 +6,18 @@ Customers and admins log in with email + password. Customers can self‑register
 and recover a forgotten password. Mockups will be provided; this spec is the
 behaviour behind them.
 
-## Screens (web — `libs/web/auth`, `@baa/web-auth`)
+**Forgot password and change password are specified in detail in
+[CR-1](../cr/CR-1-forgot-and-change-password.md)** — summarised here, that doc
+is the source of truth for both.
 
-| Route | Screen | Who |
+## Screens (web — `apps/web/src/app/pages/authentication/`, `dashboard/`)
+
+| Route / trigger | Screen | Who |
 | --- | --- | --- |
 | `/login` | Email + password, "Forgot password?" link, "Create account" link | everyone (default when logged out) |
 | `/register` | Name, email, password, confirm password | customers only |
-| `/forgot-password` | Email field → "we sent you a link" confirmation | everyone |
-| `/reset-password?token=…` | New password + confirm | via emailed link |
+| `/forgot-password` | Email field → generates + emails a new password (CR-1) | everyone |
+| "Change password" in the dashboard's profile menu | Dialog: email (read-only) / old / new / confirm password (CR-1) | logged-in customers & admins |
 
 All forms: MUI `TextField`, `Button`, `Alert` for errors — controlled inputs with
 `useState` and a small validate function. No form library.
@@ -84,18 +88,21 @@ Sign in button are full‑width on `xs`. Must render cleanly at 360px wide.
 A logged‑in user hitting `/login`, `/register`, etc. is bounced to their home route.
 A logged‑out user hitting a protected route is bounced to `/login`.
 
-## Forgot / reset password flow
+## Forgot password + change password (CR-1)
 
-1. `POST /api/auth/forgot-password { email_id }`
-   - Always responds `200 { ok: true }` (don't reveal whether the email exists).
-   - If the email exists: create a random 32‑byte token, store its sha‑256 hash
-     in `password_reset_tokens` with `expires_at = now + 30 min`, email a link
-     `${WEB_ORIGIN}/reset-password?token=<raw token>`.
-   - Dev: log the link to the console (nodemailer to Ethereal/console transport).
-2. `POST /api/auth/reset-password { token, new_password }`
-   - Hash the token, look up an unused, unexpired row → set the customer's
-     password, set `used_at = now()`. Invalid/expired → `400`.
-   - On success the user is sent to `/login` (they log in fresh).
+**Forgot password** — no reset link, no token table. `POST /api/auth/forgot-password
+{ email_id }` always responds `200 { ok: true }` (never reveals whether the email
+is registered); if it is, the server generates a random password, hashes +
+stores it, and emails the **plain generated password** to the customer. They
+sign in with it, then are encouraged to change it.
+
+**Change password** — from the dashboard's profile menu, authenticated.
+`POST /api/auth/change-password { email_id, oldPassword, newPassword }`
+(passwords base64-encoded per the usual convention) requires **both** a valid
+session **and** the submitted email matching the session **and** the old
+password verifying — a valid JWT alone doesn't let you change the password.
+
+Full rules, UI, security trade-offs: [CR-1](../cr/CR-1-forgot-and-change-password.md).
 
 ## API
 
@@ -103,11 +110,12 @@ A logged‑out user hitting a protected route is bounced to `/login`.
 | --- | --- | --- | --- | --- |
 | POST | `/api/auth/register` | `{ name, email_id, password }` | `{ token, user }` | none |
 | POST | `/api/auth/login` | `{ email_id, password }` | `{ token, user }` | none |
-| GET | `/api/auth/me` | — | `{ user }` | Bearer |
-| POST | `/api/auth/forgot-password` | `{ email_id }` | `{ ok: true }` | none |
-| POST | `/api/auth/reset-password` | `{ token, new_password }` | `{ ok: true }` | none |
+| POST | `/api/auth/forgot-password` | `{ email_id }` | `200 { ok: true }` always | none |
+| POST | `/api/auth/change-password` | `{ email_id, oldPassword, newPassword }` | `200 { ok: true }` | Bearer |
 
-Errors: `400` validation, `401` bad credentials / bad token, `409` email already registered.
+Errors: `400` validation / old password incorrect / new password too short or
+same as old, `401` bad credentials or missing/invalid token, `403` submitted
+email doesn't match the session, `409` email already registered (register only).
 
 ## Backend pieces
 
@@ -118,13 +126,17 @@ describe):
 - `utils/jwt.ts` — `signToken` / `verifyToken`, `AuthTokenPayload` (`sub` = customer id).
   Stateless: no session/token table. `requireAuth` / `requireAdmin` middleware
   land here when the first protected route does.
-- `repositories/auth.ts` — `registerCustomer`, `findCustomerByEmail` (parameterised SQL).
-- `services/auth.ts` — `registerUser` (dedup check → hash → insert → token),
-  `loginUser` (find → verify → token). Both `decodePassword()` the base64 first.
+- `repositories/auth.ts` — `registerCustomer`, `findCustomerByEmail`,
+  `updatePasswordByEmail` (parameterised SQL).
+- `services/auth.ts` — `registerUser`, `loginUser`, and (CR-1) `forgotPassword`,
+  `changePassword`. All `decodePassword()` the base64 first.
 - `controllers/auth.ts` + `routes/auth.ts` — validate body, call the service,
-  shape the response. Router mounted once at `/api/auth` in `main.ts`.
-- `zod` only if hand-validation gets ugly. Forgot-password mailer: log the link
-  to the console in dev; wire a real mailer only when needed.
+  shape the response. Router mounted once at `/api/auth` in `main.ts`;
+  `change-password` is the only route behind `requireAuth`.
+- `utils/password.ts` also has `generateTempPassword()` (CR-1). `utils/mailer.ts`
+  has `sendNewPasswordEmail()` — logs to the console in dev, `nodemailer`/SMTP_*
+  in prod (same mailer built for admin cancellation emails).
+- `zod` only if hand-validation gets ugly.
 
 ## Done when
 
@@ -133,10 +145,15 @@ describe):
 - Registering an already-used email shows "That email is already registered" (`409`).
 - Existing customer/admin can log in and is routed by type.
 - Wrong password shows an inline error, no crash.
-- Forgot → reset with the emailed link works; expired/used token is rejected.
+- Forgot-password on a registered email logs (console, dev) a new password that
+  then logs in; on an unregistered email the response is identical (`{ok:true}`).
+- Change-password: wrong old password / mismatched email / no token are each
+  rejected with the right status; a correct change immediately invalidates the
+  old password (new one is required to log in again).
 - Refreshing the browser keeps the session; `401` anywhere logs the user out.
 
 ## Out of scope
 
 Social login, email verification on signup, "remember me" toggle, refresh
-tokens, rate limiting (add later), admin user management UI.
+tokens, rate limiting (add later), admin user management UI. See CR-1 for what's
+deliberately out of scope in the forgot/change-password flows specifically.
