@@ -1,7 +1,10 @@
-import { registerCustomer, findCustomerByEmail } from '@app/repositories/auth';
+import { MIN_PASSWORD_LENGTH } from '@baa/types';
+import { registerCustomer, findCustomerByEmail, updatePasswordByEmail } from '@app/repositories/auth';
 import { createPatient } from '@app/repositories/patients';
-import { hashPassword, verifyPassword } from '@app/utils/password';
+import { hashPassword, verifyPassword, generateTempPassword } from '@app/utils/password';
 import { signToken } from '@app/utils/jwt';
+import { sendNewPasswordEmail } from '@app/utils/mailer';
+import { HttpError } from '@app/utils/httpError';
 
 interface AuthResult {
   token: string;
@@ -87,4 +90,61 @@ export const loginUser = async (loginData: {
       type: customer.type,
     },
   };
+};
+
+// ---- CR-1: forgot password (auto-generated) + change password ----
+
+/**
+ * Verifies the email is registered, then generates and emails a new password.
+ * Always resolves (no error) whether or not the email exists - the controller
+ * responds 200 either way so registration status is never revealed.
+ */
+export const forgotPassword = async (emailRaw: string): Promise<void> => {
+  const email = (emailRaw ?? '').trim().toLowerCase();
+  if (!email) return;
+
+  const customer = await findCustomerByEmail(email);
+  if (!customer) return; // silently no-op - don't reveal whether the email is registered
+
+  const tempPassword = generateTempPassword();
+  const passwordHash = await hashPassword(tempPassword);
+  await updatePasswordByEmail(email, passwordHash);
+  await sendNewPasswordEmail(email, tempPassword);
+};
+
+/**
+ * Changes the logged-in customer's password. Requires both the email on the
+ * JWT to match the submitted email, AND the current password to verify -
+ * a valid token alone isn't enough.
+ */
+export const changePassword = async (
+  authEmail: string,
+  body: { email_id?: string; oldPassword?: string; newPassword?: string }
+): Promise<void> => {
+  const submittedEmail = (body.email_id ?? '').trim().toLowerCase();
+  if (!submittedEmail || submittedEmail !== authEmail.trim().toLowerCase()) {
+    throw new HttpError(403, 'That email does not match your account');
+  }
+  if (!body.oldPassword || !body.newPassword) {
+    throw new HttpError(400, 'Old and new password are required');
+  }
+
+  const customer = await findCustomerByEmail(submittedEmail);
+  if (!customer) throw new HttpError(404, 'Account not found');
+
+  const oldPlain = decodePassword(body.oldPassword);
+  if (!(await verifyPassword(oldPlain, customer.password))) {
+    throw new HttpError(400, 'Old password is incorrect');
+  }
+
+  const newPlain = decodePassword(body.newPassword);
+  if (newPlain.length < MIN_PASSWORD_LENGTH) {
+    throw new HttpError(400, `New password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
+  if (newPlain === oldPlain) {
+    throw new HttpError(400, 'New password must be different from the old password');
+  }
+
+  const newHash = await hashPassword(newPlain);
+  await updatePasswordByEmail(submittedEmail, newHash);
 };

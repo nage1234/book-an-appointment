@@ -35,25 +35,26 @@ book-an-appointment/
 │   │           └── pages/
 │   │               ├── authentication/      # ✅ login.tsx, register.tsx, types.ts,
 │   │               │                        #    useAuth.tsx (AuthContext), useApiFetch.ts
-│   │               └── dashboard/            # ✅ dashboard.tsx, AvailabilityGrid.tsx,
-│   │                                        #    AddPatientDialog.tsx, ConfirmDialog.tsx, helpers.ts
+│   │               └── dashboard/            # ✅ dashboard.tsx (AvailabilityDashboard, role-aware),
+│   │                                        #    AvailabilityGrid, AddPatientDialog, ConfirmDialog,
+│   │                                        #    adminDashboard.tsx (tabs), HolidaysPanel, Reports, helpers.ts
 │   └── api/  (Express + esbuild, :3000)
 │       └── src/
 │           ├── main.ts                      # ✅ cors + json + route mounting + GET /api/health
 │           ├── db.ts                        # ✅ pg Pool (bigint→number) + pingDb()
 │           └── app/
-│               ├── routes/                  # ✅ auth, patients, availability, appointments (thin; requireAuth)
+│               ├── routes/                  # ✅ auth, patients, availability, appointments, admin
 │               ├── controllers/             # ✅ HTTP in/out only
-│               ├── services/                # ✅ business rules — no req/res, no SQL
-│               ├── repositories/            # ✅ parameterised SQL, one file per table area
-│               └── utils/                   # ✅ jwt, password, requireAuth, httpError, dates
+│               ├── services/                # ✅ business rules (auth, availability, appointments, admin*)
+│               ├── repositories/            # ✅ parameterised SQL (auth, customers, patients, appointments, holidays, metrics)
+│               └── utils/                   # ✅ jwt, password, requireAuth, httpError, dates, mailer
 ├── libs/
 │   ├── shared/types/  (@baa/types)          # ✅ SlotKey + hour maps, SlotStatus, Patient,
 │   │                                        #    Availability/Appointment DTOs, AuthUser
 │   └── web/ui/  (@baa/ui)                   # ✅ MUI theme + SLOT_COLORS + MIN_PASSWORD_LENGTH
 ├── db/
-│   ├── schema.sql                           # ✅ idempotent DDL — `npm run db:schema`
-│   └── apply.mjs
+│   ├── schema.sql / apply.mjs               # ✅ idempotent DDL — `npm run db:schema`
+│   └── seed-admin.mjs                       # ✅ `npm run db:seed-admin` (ADMIN_EMAIL/PASSWORD from .env)
 ├── docs/
 └── .claude/skills/
 ```
@@ -68,7 +69,7 @@ runtime.
 ### Installed now
 
 **web:** `react`, `react-dom`, `react-router-dom`, `@mui/material`, `@emotion/react`, `@emotion/styled` · (`@tanstack/react-query` is installed but unused — remove or adopt)
-**api:** `express`, `pg`, `dotenv`, `cors`, `bcryptjs`, `jsonwebtoken`
+**api:** `express`, `pg`, `dotenv`, `cors`, `bcryptjs`, `jsonwebtoken`, `nodemailer`
 **build (dev):** `nx` + `@nx/{react,vite,node,esbuild,js,web,workspace}`, `vite`, `@vitejs/plugin-react`, `esbuild`, `typescript`, `tslib`, `@types/*`
 
 No migration tool — schema lives in `db/schema.sql` (idempotent, `npm run db:schema`).
@@ -79,7 +80,6 @@ are hand-validated.
 
 | Package | When | For |
 | --- | --- | --- |
-| `nodemailer` | M6 | admin-cancellation emails (dev: console transport) |
 | `@playwright/test`, `@axe-core/playwright` | verification harness | headless browser checks — see [verification.md](verification.md) |
 | `@mui/x-charts` | only if the admin metrics ever need graphs (not planned) | — |
 | eslint / a unit test runner | when you want them (M5) | — |
@@ -92,8 +92,9 @@ are hand-validated.
 | `PORT` | api | `3000` |
 | `WEB_ORIGIN` | api (CORS) | `http://localhost:4200` |
 | `VITE_API_URL` | web | `http://localhost:3000/api` |
-| `JWT_SECRET` | api | added in M2 |
-| `SMTP_*` | api | added in M6 for cancellation emails; unset in dev → log to console |
+| `JWT_SECRET` / `JWT_EXPIRES_IN` | api | signing key + token lifetime |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | `db:seed-admin` | the admin account to upsert |
+| `SMTP_*` | api | cancellation emails; unset in dev → printed to the console |
 
 `.env` is git-ignored; `.env.example` is committed.
 

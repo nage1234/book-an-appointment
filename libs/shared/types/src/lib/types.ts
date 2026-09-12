@@ -99,3 +99,33 @@ export interface AppointmentDto {
   slot: SlotKey;
   status: AppointmentStatus;
 }
+
+// ---- Admin dashboard ----
+
+export interface CustomerSummary {
+  id: number;
+  name: string;
+  email_id: string;
+}
+
+export interface Holiday {
+  holiday_date: string; // YYYY-MM-DD
+  description: string;
+}
+
+export type MetricsPeriod = 'this_month' | 'last_month' | 'this_year' | 'last_year';
+
+export interface MetricsResponse {
+  period: MetricsPeriod;
+  totalAppointments: number;
+  perCustomer: { customerId: number; name: string; email_id: string; count: number }[];
+  totals: { customers: number; patients: number; appointments: number };
+}
+
+export interface DormantCustomer {
+  id: number;
+  name: string;
+  email_id: string;
+  created_at: string;
+  patient_count: number;
+}

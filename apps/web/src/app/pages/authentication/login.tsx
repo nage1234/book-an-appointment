@@ -28,8 +28,8 @@ export function Login() {
     setError(null);
     setSubmitting(true);
     try {
-      await login({ email_id: emailId, password });
-      navigate('/dashboard');
+      const u = await login({ email_id: emailId, password });
+      navigate(u.type === 'admin' ? '/admin' : '/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed.');
     } finally {

@@ -15,6 +15,7 @@ Appointment booking app for a psychiatric clinic. Patients ("customers") book
 | [spec/dashboard.md](spec/dashboard.md) | Year/month controls + calendar availability table |
 | [spec/booking-and-cancelling.md](spec/booking-and-cancelling.md) | Booking a slot, cancelling a slot |
 | [spec/admin-dashboard.md](spec/admin-dashboard.md) | Admin: holidays, manual booking, metrics, dormant-customer report |
+| [cr/CR-1-forgot-and-change-password.md](cr/CR-1-forgot-and-change-password.md) | Change request: forgot password (auto-generated + emailed) and change password (profile menu dialog) |
 
 ## Guiding principle
 

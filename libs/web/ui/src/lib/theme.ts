@@ -14,9 +14,9 @@ export const theme = createTheme({
   },
   typography: {
     fontFamily: FONT,
-    fontSize: 16,
+    fontSize: 14,
     allVariants: { color: TEXT },
-    button: { fontSize: 16, fontWeight: 700, textTransform: 'none' },
+    button: { fontSize: 14, fontWeight: 700, textTransform: 'none' },
   },
   components: {
     MuiButton: {
@@ -24,17 +24,17 @@ export const theme = createTheme({
       // and text from palette.*.contrastText (set above).
       defaultProps: { disableElevation: true, variant: 'contained' },
       styleOverrides: {
-        root: { border: 'none', fontSize: 16, fontWeight: 700, textTransform: 'none' },
+        root: { border: 'none', fontSize: 14, fontWeight: 700, textTransform: 'none' },
       },
     },
     MuiLink: {
-      styleOverrides: { root: { fontSize: 16, color: PRIMARY, fontWeight: 400 } },
+      styleOverrides: { root: { fontSize: 14, color: PRIMARY, fontWeight: 400 } },
     },
     MuiFormLabel: {
-      styleOverrides: { root: { fontFamily: FONT, fontSize: 16, color: TEXT } },
+      styleOverrides: { root: { fontFamily: FONT, fontSize: 14, color: TEXT } },
     },
     MuiInputBase: {
-      styleOverrides: { root: { fontSize: 16, color: TEXT } },
+      styleOverrides: { root: { fontSize: 14, color: TEXT } },
     },
     MuiTypography: {
       styleOverrides: { root: { color: TEXT } },

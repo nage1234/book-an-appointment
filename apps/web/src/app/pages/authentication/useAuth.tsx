@@ -24,6 +24,8 @@ interface AuthContextValue {
   login: (credentials: LoginCredentials) => Promise<AuthUser>;
   /** Creates the account. Does NOT log in - the flow sends the user to /login. */
   register: (data: RegisterData) => Promise<void>;
+  /** CR-1: always resolves - the server never reveals whether the email is registered. */
+  forgotPassword: (emailId: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -40,7 +42,7 @@ function readStored(): StoredAuth | null {
 
 // base64 - obfuscation, not security. HTTPS is what protects the password in
 // transit; this just keeps the plain text out of the JSON body / server logs.
-function encodePassword(plain: string): string {
+export function encodePassword(plain: string): string {
   const bytes = new TextEncoder().encode(plain);
   let binary = '';
   bytes.forEach((b) => (binary += String.fromCharCode(b)));
@@ -93,6 +95,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Intentionally ignore the returned token - the user signs in fresh at /login.
   }, []);
 
+  const forgotPassword = useCallback(async (emailId: string) => {
+    const res = await fetch(`${API_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email_id: emailId.trim() }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      throw new Error(body.message || 'Something went wrong. Please try again.');
+    }
+  }, []);
+
   const logout = useCallback(() => {
     setAuth(null);
     try {
@@ -109,9 +123,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: !!auth?.token,
       login,
       register,
+      forgotPassword,
       logout,
     }),
-    [auth, login, register, logout]
+    [auth, login, register, forgotPassword, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

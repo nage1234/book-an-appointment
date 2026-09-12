@@ -74,9 +74,10 @@ considered — in [docs/architecture.md](docs/architecture.md).
 
 ## Project status
 
-Auth, the availability dashboard, and booking/cancelling work end to end against
-Supabase. Still to do: forgot/reset password, the admin dashboard, the Playwright
-verification harness, and a polish pass. See [docs/plan.md](docs/plan.md):
+Auth, the availability dashboard, booking/cancelling, and the admin dashboard
+(manual booking, holidays, metrics, dormant customers) work end to end against
+Supabase. Still to do: forgot/reset password, the Playwright verification
+harness, and a polish pass. See [docs/plan.md](docs/plan.md):
 
 - ✅ **M0** — Nx workspace, React/Express boilerplate, MUI theme, DB connectivity
 - ✅ **M1** — database (`db/schema.sql`, applied to Supabase)
@@ -84,7 +85,7 @@ verification harness, and a polish pass. See [docs/plan.md](docs/plan.md):
 - ✅ **M3** — availability dashboard *(API + UI wired; browser visual check pending)*
 - ✅ **M4** — booking & cancelling *(API + dialogs wired)*
 - ⏭ **M5** — polish, lint, unit tests
-- ⏭ **M6** — admin dashboard (holidays, manual booking, metrics, dormant customers)
+- ✅ **M6** — admin dashboard (holidays, manual booking, metrics, dormant customers)
 - 🔨 **verification** — Playwright harness spec'd ([docs/verification.md](docs/verification.md)), not yet implemented
 
 ## Quick start
@@ -95,6 +96,7 @@ Nx 21 monorepo (npm). Requires Node ≥ 22.12 (developed on Node 26).
 npm ci
 cp .env.example .env          # fill in DATABASE_URL (Supabase) + JWT_SECRET
 npm run db:schema             # apply db/schema.sql (idempotent)
+npm run db:seed-admin         # create the admin account (ADMIN_EMAIL / ADMIN_PASSWORD in .env)
 
 npm run dev                   # web on :4200, api on :3000
 # or individually: 
