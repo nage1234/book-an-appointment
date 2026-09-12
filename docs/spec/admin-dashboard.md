@@ -1,21 +1,60 @@
 # Spec 4 — Admin dashboard
 
+**Status: built (M6)** — API + UI done, verified via API tests; browser visual
+check still pending (Playwright).
+
 Route: `/admin` · every `/api/admin/*` endpoint is behind `requireAdmin`
 (rejects `401` with no token, `403` for a `customer` token).
 
 Supersedes schema.md decision #6 ("just shows Welcome Admin"). Admins get a real
-screen with four sections. All open questions are now resolved (see **Decisions**).
+screen — vertical **Dashboard / Reports** tabs (see **Screen layout**). All open
+questions are resolved (see **Decisions**).
 
-## Screens
+## Screen layout
 
-`/admin` with four sections (tabs — cosmetic, decide at build):
+`/admin` is behind an **admin-only route guard** (`<RequireAuth role="admin">`) —
+a `customer` token there is redirected to `/dashboard`. Login routes by type:
+`admin → /admin`, `customer → /dashboard`.
 
-1. **Holidays**
-2. **Manual booking**
-3. **Metrics**
-4. **Dormant customers**
+The page header reuses the customer dashboard's — big title ("Appointment
+Booking System"), subtitle, and the avatar/profile menu (initials + name from
+`useAuth()`, "Sign out").
 
-Uses the same MUI theme / `ui-components` rules as the rest of the app.
+Below the header, a **vertical MUI `Tabs`** (`orientation="vertical"`) with two
+items:
+
+| Tab | Contents |
+| --- | --- |
+| **Dashboard** | the shared availability dashboard (below) + a **Customer** selector + a **Holidays** panel |
+| **Reports** | **Metrics** + **Dormant customers** (sections 3–4) |
+
+### Shared availability dashboard
+
+`AvailabilityDashboard` is **one component**, used by both `/dashboard` and the
+admin Dashboard tab. It branches on `useAuth().user.type`:
+
+| | Customer (`/dashboard`) | Admin (Dashboard tab) |
+| --- | --- | --- |
+| Patient list source | `GET /api/patients` (own) | `GET /api/admin/customers/{id}/patients` for the selected customer |
+| **Customer selector** | hidden | MUI `Select` above the patient selector, listing every customer as **`Name (email@x.com)`**, from `GET /api/admin/customers`. Changing it clears the patient selection and reloads that customer's patients. |
+| Availability | `GET /api/availability?year&month&patientId` | same endpoint — the ownership check on `patientId` is **skipped for admin tokens** |
+| Book (green cell) | `POST /api/appointments` | `POST /api/admin/appointments` (`created_by='admin'`, bypasses per-patient limit / horizon / 1-hour window) |
+| Cancel (blue cell) | `POST /api/appointments/{id}/cancel` (1-hour rule) | `POST /api/admin/appointments/{id}/cancel` (any time) → cancellation email |
+| Add-patient dialog | yes | yes — `POST /api/admin/customers/{id}/patients` (or `POST /api/patients` with `customerId` for admins) |
+| "Appointment for" default | the `self` patient | none until a customer is picked |
+
+Until an admin picks a customer, the patient selector and grid are disabled with
+a "Select a customer to begin" hint.
+
+### Holidays panel (Dashboard tab, admin only)
+
+A small panel beside/under the grid: a date field + description + **Add**, and a
+list of upcoming holidays each with a **Remove** button. Wired to
+`GET/POST/DELETE /api/admin/holidays`. Adding one greys that column on the grid
+immediately (refetch availability) and reports `cancelledCount` in a snackbar.
+
+There is **no separate mockup** — reuse `book_appointment.png`'s look (same grid,
+same selectors styled the same) plus the two extra controls above.
 
 ---
 
@@ -124,12 +163,16 @@ group by c.id;
 | GET | `/api/admin/holidays` | — | `{ holidays: [{ holiday_date, description }] }` |
 | POST | `/api/admin/holidays` | `{ date, description }` | `201 { holiday, cancelledCount }` |
 | DELETE | `/api/admin/holidays/{date}` | — | `200 { ok: true }` |
-| GET | `/api/admin/customers` | `?q=` | `{ customers: [{ id, name, email_id }] }` |
+| GET | `/api/admin/customers` | `?q=` (optional) | `{ customers: [{ id, name, email_id }] }` — all customers when `q` is absent |
 | GET | `/api/admin/customers/{id}/patients` | — | `{ patients: [...] }` |
+| POST | `/api/admin/customers/{id}/patients` | `{ name, age?, gender?, relation }` | `201 { patient }` |
 | POST | `/api/admin/appointments` | `{ patientId, date, slot }` | `201 { appointment }` |
 | POST | `/api/admin/appointments/{id}/cancel` | — | `200 { appointment }` |
 | GET | `/api/admin/metrics` | `?period=this_month\|last_month\|this_year\|last_year` | `{ period, totalAppointments, perCustomer: [...], totals: {...} }` |
 | GET | `/api/admin/customers/dormant` | — | `{ customers: [...] }` |
+
+`GET /api/availability` is **shared** — it just skips the `patientId` ownership
+check when the token is an admin's, so the admin dashboard reuses it directly.
 
 Errors: `401` no token · `403` not an admin · `400` bad input · `404` unknown id · `409` slot taken.
 
@@ -154,6 +197,7 @@ Errors: `401` no token · `403` not an admin · `400` bad input · `404` unknown
 6. **Metrics** → count appointments, and **appointments per customer** (summed
    over that customer's patients). Not distinct-patient counts.
 7. **Metrics periods** → calendar (this calendar month / year, etc.).
+8. **Admin dashboard** -> title as per the admin login. Add an additional dropdown for customers name and email listing <customer name (email)> in the dropdown, based on the selection, patients name should list. (reuse the dashboard for both customer and admin as per the useAuth hook, to identify who has logged in)
 
 ## Out of scope
 
@@ -163,6 +207,11 @@ admin-cancellation notice · an audit log of admin actions.
 
 ## Done when
 
+- Admin logs in → lands on `/admin`; a customer visiting `/admin` is redirected.
+- `/admin` shows the vertical **Dashboard / Reports** tabs under the shared header.
+- Dashboard tab: the **Customer** select lists everyone as `Name (email)`;
+  picking one loads their patients; the grid then behaves like the customer
+  dashboard but books/cancels via the admin endpoints.
 - Admin adds a holiday → that date greys out on the customer dashboard, its
   bookings are cancelled, and those customers get the email. Deleting the holiday
   reopens the date (cancelled bookings stay cancelled).

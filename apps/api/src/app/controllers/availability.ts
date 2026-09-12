@@ -8,7 +8,8 @@ export async function get(req: Request, res: Response): Promise<void> {
       req.user!.id,
       Number(req.query.year),
       Number(req.query.month),
-      Number(req.query.patientId)
+      Number(req.query.patientId),
+      req.user!.type === 'admin'
     );
     res.json(data);
   } catch (err) {

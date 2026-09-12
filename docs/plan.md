@@ -86,28 +86,21 @@ Principle: no package or abstraction until a milestone actually needs it.
   concurrency 409) and eslint if wanted. Tighten Playwright axe gate; consider
   visual-regression baselines now the UI is stable.
 
-## M6 — Admin dashboard ([spec](spec/admin-dashboard.md))
+## M6 — Admin dashboard ([spec](spec/admin-dashboard.md)) ✅ DONE (API + UI)
 
-All the spec's open decisions are resolved.
-
-- Add `nodemailer`; add `appointments.created_by` (`customer`/`admin`) column.
-- `requireAdmin` middleware; `/api/admin/*` router.
-- **Holidays** — CRUD (`holidays` table); availability computation greys holiday
-  dates. Adding a holiday cancels every `booked` appointment on that date and
-  emails each customer the fixed cancellation message (dev: console transport).
-- **Manual booking** — customer search, patient lookup, `POST /api/admin/appointments`
-  with `created_by='admin'`, bypassing the per-patient limit / horizon / 1h window
-  (slot-taken / Sunday / holiday still block). Admin cancel emails the customer.
-- **Metrics** — `GET /api/admin/metrics?period=…`: total appointments for the
-  calendar period + an appointments-per-customer table. Plain `COUNT`/`GROUP BY`,
-  stat cards + table, no charting library.
-- **Dormant customers** — `GET /api/admin/customers/dormant`: `type='customer'`
-  accounts with no non-cancelled appointments across their patients.
-- `/admin` screen with the four sections; behind an admin route guard.
-- **Check:** admin adds a holiday → customer dashboard greys it, its bookings are
-  cancelled, those customers get the email; admin books for a chosen patient
-  (overriding limits) → shows for that patient and the customer can still cancel
-  it; metric numbers + per-customer table render; dormant list is correct.
+- `nodemailer` (`utils/mailer.ts` — SMTP if configured, else console). `db/seed-admin.mjs`
+  + `npm run db:seed-admin`. `appointments.created_by` was already added in M1.
+- `requireAdmin`; `apps/api/src/app/{routes,controllers}/admin.ts` + `services/admin*`
+  + `repositories/{customers,metrics}.ts`. All `/api/admin/*` from the spec's API table.
+- `GET /api/availability` relaxed: skips the `patientId` ownership check for admin tokens.
+- Web: `/admin` route behind `<RequireAuth role="admin">`; login routes admins there.
+  `dashboard.tsx` (`AvailabilityDashboard`) is role-aware — admin gets a **Customer**
+  select and uses the admin endpoints. `adminDashboard.tsx` = vertical **Dashboard /
+  Reports** tabs; `HolidaysPanel.tsx` in the Dashboard tab; `Reports.tsx` = metrics
+  cards + per-customer table + dormant table.
+- **Verified via API tests:** admin login; customer → 403 / no-token → 401; customer
+  list; admin book x2 same patient (bypass); holiday add → cancels + emails (console);
+  metrics; dormant. Browser visual check pending (Playwright).
 
 ## Cross-cutting
 
