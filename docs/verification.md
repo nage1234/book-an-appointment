@@ -15,7 +15,7 @@ type-checking and `nx build` don't give you.
 | Viewports | **360×640 · 768×1024 · 1280×800** | The three sizes the `ui-components` skill already mandates. |
 | Accessibility | **`@axe-core/playwright`**, gated on `serious` + `critical` only | The `ui-components` skill requires WAI-ARIA compliance. Minor violations don't block while the UI is still moving. |
 | Visual regression (pixel-diff baselines) | **Not yet** | The UI is still in active development — committed baseline screenshots would churn and produce noisy diffs. Revisit at M5 once screens stabilise (`expect(page).toHaveScreenshot()`). |
-| Scope now | **Harness + `dashboard.spec.ts`** | Prove the setup on the most complex screen. `login` / `register` / admin specs are added as those features settle. |
+| Scope now | **Harness + `login.spec.ts`** (built 2026-09-16) | `dashboard.spec.ts` / `register` / admin specs are added as those features settle. |
 
 ## One-time setup
 
@@ -31,9 +31,10 @@ npm run e2e:install        # downloads Chromium (~150 MB) to ~/Library/Caches/ms
 ```
 playwright.config.ts
 e2e/
-├── dashboard.spec.ts
+├── login.spec.ts         # built 2026-09-16
+├── dashboard.spec.ts     # not yet built
 ├── helpers/
-│   ├── mockApi.ts        # page.route handlers for /api/*
+│   ├── mockApi.ts        # page.route handlers for /api/auth/* + a minimal dashboard shell
 │   └── session.ts        # seeds localStorage `baa.auth` (for when a route guard lands)
 └── screenshots/          # git-ignored; regenerated each run
 ```
@@ -69,44 +70,39 @@ export default defineConfig({
 
 Real Chromium at three fixed viewport sizes — predictable, matches the skill's numbers.
 
-### `e2e/helpers/mockApi.ts`
+### `e2e/helpers/mockApi.ts` and `e2e/helpers/session.ts`
 
-```ts
-import type { Page } from '@playwright/test';
+Actual implementation, kept in sync with the code rather than duplicated here:
+- `mockApi.ts` — `CUSTOMER` fixture, `mockLoginSuccess` / `mockLoginFailure` for
+  `**/api/auth/login`, and `mockDashboardShell` (minimal `**/api/patients` +
+  `**/api/availability**`) so a mocked login's redirect to `/dashboard` doesn't
+  error trying to fetch real data.
+- `session.ts` — `seedSession(page)`, seeds `localStorage['baa.auth']` via
+  `page.addInitScript` so a spec can land on a protected route without going
+  through the login form. Not used by `login.spec.ts` itself (that spec *is*
+  the login form); for `dashboard.spec.ts` and later specs.
 
-const USER = { id: 1, name: 'Ravi Kumar', email_id: 'ravi@example.com', type: 'customer' };
+## What `login.spec.ts` checks (built 2026-09-16)
 
-export async function mockApi(page: Page) {
-  await page.route('**/api/auth/login', (r) =>
-    r.fulfill({ status: 200, contentType: 'application/json',
-      body: JSON.stringify({ token: 'test.jwt', user: USER }) }));
-  await page.route('**/api/auth/register', (r) =>
-    r.fulfill({ status: 201, contentType: 'application/json',
-      body: JSON.stringify({ token: 'test.jwt', user: { ...USER, id: 2 } }) }));
-  // M3: add **/api/availability and **/api/patients handlers here.
-}
-```
+Runs on all three viewport projects — 6 tests × 3 = 18.
 
-### `e2e/helpers/session.ts`
+- Renders: logo, both labelled fields (`getByLabel`), "Forgot password?" link,
+  "Sign in" button, "Sign up" link — **zero `console.error`** during load —
+  plus a screenshot (`e2e/screenshots/login-<project>.png`).
+- Wrong credentials (mocked `401`) → the server's error message shown inline,
+  still on `/login`.
+- Correct credentials (mocked `200` + `mockDashboardShell`) → lands on
+  `/dashboard` (profile menu visible).
+- "Forgot password?" → `/forgot-password`; "Sign up" → `/register`.
+- `AxeBuilder(page).analyze()` → no `serious`/`critical` violations.
+  **Currently 3 failing** (one per viewport) — see the `ui-components` skill's
+  Buttons section: `#54A0D6` white-on-blue and blue-on-white both measure
+  2.84:1 against a required 4.5:1. Left failing on purpose (2026-09-16) —
+  fixing it means either darkening the brand blue or explicitly accepting the
+  violation, both decisions for the user, not something to quietly patch
+  around in the test.
 
-```ts
-import type { Page } from '@playwright/test';
-
-/** Land on a protected route without going through the login form. */
-export async function seedSession(page: Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem('baa.auth', JSON.stringify({
-      token: 'test.jwt',
-      user: { id: 1, name: 'Ravi Kumar', email_id: 'ravi@example.com', type: 'customer' },
-    }));
-  });
-}
-```
-
-`/dashboard` has no route guard yet, so this isn't strictly needed today — it's
-here so specs don't change when the guard lands.
-
-## What `dashboard.spec.ts` checks
+## What `dashboard.spec.ts` checks (not yet built)
 
 Runs on all three viewport projects.
 
@@ -186,8 +182,9 @@ and `e2e/screenshots/` as build artifacts.
 
 ## Roadmap
 
-- **Now** — harness + `dashboard.spec.ts` (+ the component a11y fixes above).
-- **Per feature** — `login.spec.ts`, `register.spec.ts`, then admin specs.
+- **Done (2026-09-16)** — harness + `login.spec.ts`.
+- **Next** — `dashboard.spec.ts` (+ the component a11y fixes below), then
+  `register.spec.ts`, `forgotPassword.spec.ts`, admin specs.
 - **M3** — add `/api/availability` + `/api/patients` mocks; assert cell colours,
   patient-switch refetch, holiday/Sunday greying.
 - **M5** — tighten axe to all violations; reconsider pixel-diff visual regression
