@@ -8,10 +8,15 @@
     "api": "nx serve api",
     "build": "nx run-many -t build -p web api",
     "db:schema": "node db/apply.mjs",
-    "db:seed-admin": "node db/seed-admin.mjs"
+    "db:seed-admin": "node db/seed-admin.mjs",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:report": "playwright show-report",
+    "e2e:install": "playwright install chromium"
   },
   "private": true,
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@nx/esbuild": "^21.6.11",
     "@nx/js": "21.6.11",
     "@nx/node": "^21.6.11",
@@ -19,6 +24,7 @@
     "@nx/vite": "^21.6.11",
     "@nx/web": "21.6.11",
     "@nx/workspace": "21.6.11",
+    "@playwright/test": "^1.63.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",

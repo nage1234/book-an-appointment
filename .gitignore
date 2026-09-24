@@ -49,4 +49,12 @@ Thumbs.db
 .github/instructions/nx.instructions.md
 
 vite.config.*.timestamp*
-vitest.config.*.timestamp*demos/
+vitest.config.*.timestamp*
+demos/
+
+# Playwright
+/test-results
+/playwright-report
+/e2e/screenshots
+/blob-report
+/playwright/.cache
