@@ -73,8 +73,14 @@ Principle: no package or abstraction until a milestone actually needs it.
 
 ## Browser verification (parallel track — [verification.md](verification.md))
 
-- Standalone Playwright: harness (`playwright.config.ts` + `e2e/`) + `dashboard.spec.ts`
-  now; a spec per screen as features settle. Assertions + screenshots + axe, 3 viewports.
+- Standalone Playwright: harness (`playwright.config.ts` + `e2e/`) + `login.spec.ts`
+  ✅ built 2026-09-16 (mocked API, 3 viewports, axe). `dashboard.spec.ts` and a
+  spec per remaining screen next.
+- **Known finding, left open:** the axe check on `login.spec.ts` fails
+  (serious, all 3 viewports) — primary button + links at `#54A0D6` measure
+  2.84:1 contrast, below WCAG AA's 4.5:1. Matches the already-flagged
+  assumption in the `ui-components` skill; needs a user decision (darken the
+  blue vs. accept it), not a test workaround.
 - Set up alongside M3, not gated behind M5.
 
 ## M5 — Polish

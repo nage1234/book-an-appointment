@@ -29,6 +29,10 @@ colours/sizes that duplicate what's below.
 - No elevation, no uppercase transform (keep the label as written).
 - Text colour: secondary buttons use `#676363`. Primary buttons use `#FFFFFF`
   for contrast on the blue — *assumption, confirm with the user; not yet specified.*
+  **Confirmed failing WCAG AA** (2026-09-16, `e2e/login.spec.ts`'s axe check):
+  white-on-`#54A0D6` and `#54A0D6`-on-white both measure 2.84:1, need 4.5:1.
+  The test is left red on purpose until the user decides whether to darken the
+  blue or accept the violation — don't "fix" it by loosening the axe gate.
 
 ### Labels (form labels)
 - Arial, size **14**, colour `#676363`.
