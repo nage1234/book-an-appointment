@@ -53,9 +53,10 @@ form is the more sensitive leak of the two).
 
 **UI** — `apps/web/src/app/pages/dashboard/ChangePasswordDialog.tsx`, an MUI
 `Dialog` (not a page) opened from a new **"Change password"** item in the
-profile menu, between "Profile" and "Sign out". Built to the `ui-components`
-skill: theme buttons (`Cancel` secondary, `Change password` primary), `FormLabel`
-+ `TextField` pattern matching `AddPatientDialog`.
+profile menu, above "Sign out" — the menu's earlier no-op **"Profile"** item was
+removed (2026-09-12) since it went nowhere; "Change password" is now the first
+item. Built to the `ui-components` skill: theme buttons (`Cancel` secondary,
+`Change password` primary), `FormLabel` + `TextField` pattern matching `AddPatientDialog`.
 
 | Field | Input | Notes |
 | --- | --- | --- |
